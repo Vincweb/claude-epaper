@@ -58,8 +58,16 @@ choisie automatiquement selon le contexte (jamais selon le stress de la limite) 
 Chaque pose existe en **version couleur** (écran) et en **version noir & blanc**
 distincte — un vrai line-art pour l'e-ink, pas une simple désaturation.
 
-> Le rendu compact ci-dessus vise l'écran **2.13"** (250×122). Un layout **grand
-> format 7.5"** existe aussi (`docs/epaper-full.png`), sélectionnable en config.
+## 📐 Deux formats d'écran
+
+Le rendu s'adapte à la taille de ta dalle (`epaperLayout` en config) :
+
+**Compact — 2.13" (250×122)** _(voir le hero en haut)_ : Clawd, les jauges 5 h / 7 j
+et des mini-stats Tamagotchi (Énergie, Repu, Joie).
+
+**Grand — 7.5" (800×480)** : la version détaillée, avec stats complètes.
+
+<div align="center"><img src="docs/epaper-full.png" width="620" alt="Rendu e-paper grand format 7.5 pouces" /></div>
 
 ## 🧩 Comment ça marche
 
