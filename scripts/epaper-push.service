@@ -1,0 +1,23 @@
+[Unit]
+Description=Claude e-paper — pousse /api/render.png sur la dalle
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Adapte User et les chemins à ton installation.
+User=pi
+WorkingDirectory=/home/pi/claude-epaper
+# Variables : soit ici en clair, soit via EnvironmentFile (décommenter).
+Environment=RENDER_URL=http://localhost:8787/api/render.png
+Environment=EPD_MODEL=epd2in13_V4
+Environment=POLL_SECONDS=30
+Environment=FULL_REFRESH_EVERY=30
+Environment=FULL_REFRESH_SECONDS=3600
+#EnvironmentFile=/home/pi/claude-epaper/scripts/epaper-push.env
+ExecStart=/usr/bin/python3 /home/pi/claude-epaper/scripts/epaper_push.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

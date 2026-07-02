@@ -106,36 +106,68 @@ Ouvre le dashboard, puis **⚙︎ Config → Importer les credentials**. Sans cr
 
 ## 🐳 Docker / CasaOS
 
+Le Pi Zero 2 W est lent à builder. On **construit les images ici** (Mac/CI) et on les pousse sur GHCR ; **le Pi ne fait plus que `pull`**.
+
+**1. Sur ta machine — build + push** (une fois connecté à GHCR) :
+
 ```bash
-docker compose up -d --build
+echo "$GHCR_TOKEN" | docker login ghcr.io -u Vincweb --password-stdin   # PAT scope write:packages
+GHCR_OWNER=vincweb ./scripts/build-and-push.sh                          # arm64, tag latest
 ```
 
-Le dashboard est sur le port **8787**. Importe le `docker-compose.yml` dans CasaOS. Sur le Pi, décommente la section `devices` pour l'accès SPI/GPIO.
+Ça build **deux** images multi-arch et les pousse : `claude-epaper` (app) et `claude-epaper-push` (boucle e-paper).
+
+**2. Sur le Pi (ou CasaOS) — juste tirer et lancer** :
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Le dashboard est sur le port **8787**. Deux services tournent : l'**app** et la **boucle push e-paper** (voir ci-dessous).
+
+> Si tu n'as pas de dalle (NAS/CasaOS seul), lance uniquement l'app : `docker compose up -d claude-epaper`.
 
 ## 🖥️ Brancher l'e-paper
 
+Le service `epaper-push` du compose tire `/api/render.png` à cadence rapide mais **ne touche la dalle que si l'image a changé**. À la façon de [Bjorn](https://github.com/infinition/Bjorn) :
+
+- **refresh partiel** à chaque changement (rapide, sans clignotement) sur les dalles monochromes qui le supportent ;
+- **refresh complet périodique** (tous les `FULL_REFRESH_EVERY` partiels ou toutes les `FULL_REFRESH_SECONDS`) pour effacer le ghosting ;
+- les dalles 3 couleurs (noir/blanc/rouge) retombent automatiquement sur le refresh complet.
+
+**Sur le Pi :**
+
 1. Active SPI : `sudo raspi-config` → *Interface* → *SPI*.
-2. Installe la lib Waveshare de ton écran (Python officiel).
-3. Le **Pi tire `/api/render.png`** à sa cadence et ne rafraîchit la dalle que si l'image a changé (l'e-ink limite les écritures) :
+2. Ajuste `EPD_MODEL` (et les cadences) dans le `docker-compose.yml`, puis `docker compose up -d`.
 
-```python
-import time, io, hashlib, requests
-from waveshare_epd import epd2in13_V4      # adapte à ton modèle
-from PIL import Image
+Le compose passe déjà `/dev/spidev0.0` et `/dev/gpiochip0` au conteneur. Réglages (env du service `epaper-push`) :
 
-epd = epd2in13_V4.EPD(); epd.init()
-last = None
-while True:
-    png = requests.get("http://<hote>:8787/api/render.png").content
-    h = hashlib.md5(png).digest()
-    if h != last:                           # ne pousse que si ça a changé
-        img = Image.open(io.BytesIO(png)).convert("1")
-        epd.display(epd.getbuffer(img))
-        last = h
-    time.sleep(600)                         # toutes les 10 min
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `RENDER_URL` | `http://claude-epaper:8787/api/render.png` | URL du PNG (nom de service compose) |
+| `EPD_MODEL` | `epd2in13_V4` | module `waveshare_epd` de ta dalle |
+| `POLL_SECONDS` | `30` | intervalle de tirage |
+| `FULL_REFRESH_EVERY` | `30` | refresh complet tous les N partiels |
+| `FULL_REFRESH_SECONDS` | `3600` | refresh complet au moins toutes les X s |
+
+### Alternative : sans Docker (natif + systemd)
+
+Si tu préfères lancer la boucle directement sur l'hôte (l'app pouvant tourner ailleurs) :
+
+```bash
+pip install requests pillow                 # + la lib Waveshare (waveshare_epd)
+RENDER_URL=http://<hote>:8787/api/render.png python3 scripts/epaper_push.py
 ```
 
-> Le conteneur/app peut tourner ailleurs (NAS, CasaOS) ; seule cette petite boucle doit tourner **sur le Pi** (accès SPI/GPIO).
+Pour un démarrage au boot, installe le service fourni ([scripts/epaper-push.service](scripts/epaper-push.service)) — adapte `User`, chemins et variables :
+
+```bash
+sudo cp scripts/epaper-push.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now epaper-push.service
+journalctl -u epaper-push.service -f        # logs (refresh partiel/complet)
+```
 
 ## 📁 Structure
 
@@ -143,8 +175,9 @@ while True:
 server/   API Node/TS : credentials + refresh + fetch usage + SSE + rendu PNG (resvg)
 web/      Dashboard React/TS + Tailwind (jauges, Clawd animé, stats, config, PWA)
 docs/     Visuels du README
-scripts/  Génération des assets
-Dockerfile · docker-compose.yml   déploiement (CasaOS / Raspberry Pi)
+scripts/  gen-assets.mjs · epaper_push.py (boucle e-paper) · build-and-push.sh (GHCR)
+          epaper-push.Dockerfile · epaper-push.service (systemd)
+Dockerfile · docker-compose.yml   déploiement 2 services (app + push) CasaOS / Pi
 ```
 
 ## 🗺️ Roadmap
