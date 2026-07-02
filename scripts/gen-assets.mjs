@@ -1,12 +1,11 @@
 // Génère les visuels du README (docs/*.png) : panneaux e-paper + planche des poses.
-// Autonome (données d'exemple), rastérisation via resvg. Lancer : node scripts/gen-assets.mjs
+// Les panneaux utilisent le vrai moteur (build serveur requis avant) :
+//   npm run build -w server && node scripts/gen-assets.mjs
 import { Resvg } from '@resvg/resvg-js';
 import { writeFileSync, mkdirSync } from 'node:fs';
+import { buildCompact, buildFull, rasterizeSvg } from '../server/dist/render.js';
 
 const INK = '#141414';
-const BLACK = '#000000';
-const PAPER = '#ffffff';
-const RED = '#d81e28';
 const BASE = '#d97757';
 const PURPLE = '#a273f0';
 const SPARKLE = '#9b7cf0';
@@ -119,87 +118,21 @@ function clawdFull(pose) {
 }
 
 /* ------------------------------ panneau e-paper ------------------------------ */
+// Les panneaux viennent du vrai moteur de rendu (server/dist/render.js) : les
+// visuels du README sont exactement ce que la dalle reçoit.
 
-function meterCells(x, y, value, cells = 6, cw = 12, ch = 12, gap = 3) {
-  const filled = Math.round((value / 100) * cells);
-  let s = '';
-  for (let i = 0; i < cells; i++)
-    s += `<rect x="${x + i * (cw + gap)}" y="${y}" width="${cw}" height="${ch}" fill="${i < filled ? BLACK : PAPER}" stroke="${BLACK}" stroke-width="1.5"/>`;
-  return s;
-}
-
-function bar(x, y, w, label, v, reset, red) {
-  const fill = red && v >= 90 ? RED : BLACK;
-  return `<text x="${x}" y="${y}" font-family="monospace" font-size="18" letter-spacing="1" fill="${BLACK}">${label}</text>
-    <text x="${x + w}" y="${y}" text-anchor="end" font-family="monospace" font-weight="bold" font-size="34" fill="${BLACK}">${v}%</text>
-    <rect x="${x}" y="${y + 12}" width="${w}" height="22" fill="${PAPER}" stroke="${BLACK}" stroke-width="3"/>
-    <rect x="${x + 3}" y="${y + 15}" width="${(w - 6) * (v / 100)}" height="16" fill="${fill}"/>
-    <text x="${x}" y="${y + 54}" font-family="monospace" font-size="15" fill="${BLACK}">reset ${reset}</text>`;
-}
-
-function panel(d) {
-  const W = 800, H = 480, pad = 28, rx = 330, rw = W - rx - pad;
-  const mono = d.palette === 'bw';
-  const body = mono ? PAPER : RED;
-  const clawd = `${d.overhead === 'zzz' ? overhead('zzz') : ''}<g${mono ? ' filter="url(#mono)"' : ''}>${bodyShapes(body)}${eyes(d.eyes)}</g>`;
-  const title = d.title.toUpperCase();
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-  <defs><filter id="mono" x="-25%" y="-25%" width="150%" height="150%"><feMorphology in="SourceAlpha" operator="dilate" radius="3.5" result="d"/><feFlood flood-color="${BLACK}" result="w"/><feComposite in="w" in2="d" operator="in" result="o"/><feMerge><feMergeNode in="o"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-  <rect width="${W}" height="${H}" fill="${PAPER}"/>
-  <text x="${pad}" y="${pad + 26}" font-family="monospace" font-weight="bold" font-size="26" letter-spacing="4" fill="${BLACK}">CLAUDE CODE</text>
-  <text x="${W - pad}" y="${pad + 24}" text-anchor="end" font-family="monospace" font-size="18" fill="${BLACK}">${d.time}</text>
-  <rect x="${pad}" y="${pad + 40}" width="${W - 2 * pad}" height="3" fill="${BLACK}"/>
-  <svg x="${pad}" y="90" width="290" height="255" viewBox="0 0 240 210">${clawd}</svg>
-  <rect x="${pad + 20}" y="352" width="${title.length * 15 + 24}" height="30" fill="${BLACK}"/>
-  <text x="${pad + 32}" y="373" font-family="monospace" font-weight="bold" font-size="16" letter-spacing="2" fill="${PAPER}">${title}</text>
-  ${bar(rx, 130, rw, 'SESSION · 5 H', d.five, d.fiveReset, !mono)}
-  ${bar(rx, 250, rw, 'SEMAINE · 7 J', d.seven, d.sevenReset, !mono)}
-  <rect x="${pad}" y="${H - 70}" width="${W - 2 * pad}" height="3" fill="${BLACK}"/>
-  <text x="${pad}" y="${H - 38}" font-family="monospace" font-weight="bold" font-size="18" fill="${BLACK}">NIVEAU ${d.level} · ${d.age}</text>
-  <text x="${rx}" y="${H - 38}" font-family="monospace" font-size="15" fill="${BLACK}">REPU</text>${meterCells(rx + 55, H - 52, d.repu)}
-  <text x="${rx + 200}" y="${H - 38}" font-family="monospace" font-size="15" fill="${BLACK}">JOIE</text>${meterCells(rx + 250, H - 52, d.joie)}
-</svg>`;
-}
-
-function barCompact(x, y, w, label, v, reset, red) {
-  const fill = red && v >= 90 ? RED : BLACK;
-  return `<text x="${x}" y="${y}" font-family="monospace" font-size="12" fill="${BLACK}">${label}</text>
-    <text x="${x + w}" y="${y + 2}" text-anchor="end" font-family="monospace" font-weight="bold" font-size="20" fill="${BLACK}">${v}%</text>
-    <rect x="${x}" y="${y + 6}" width="${w}" height="11" fill="${PAPER}" stroke="${BLACK}" stroke-width="2"/>
-    <rect x="${x + 2}" y="${y + 8}" width="${(w - 4) * (v / 100)}" height="7" fill="${fill}"/>
-    <text x="${x}" y="${y + 27}" font-family="monospace" font-size="10" fill="${BLACK}">reset ${reset}</text>`;
-}
-
-function cellsSmall(x, y, value, cells = 4, cw = 5, ch = 6, gap = 2) {
-  const filled = Math.round((value / 100) * cells);
-  let s = '';
-  for (let i = 0; i < cells; i++)
-    s += `<rect x="${x + i * (cw + gap)}" y="${y}" width="${cw}" height="${ch}" fill="${i < filled ? BLACK : PAPER}" stroke="${BLACK}" stroke-width="1"/>`;
-  return s;
-}
-function statLine(x, y, label, value) {
-  return `<text x="${x}" y="${y + 6}" font-family="monospace" font-size="8" fill="${BLACK}">${label}</text>${cellsSmall(x + 24, y, value)}`;
-}
-
-function compactPanel(d) {
-  const W = 250, H = 122, rx = 80, rw = 166;
-  const mono = d.palette === 'bw';
-  const body = mono ? PAPER : RED;
-  const clawd = `${d.overhead === 'zzz' ? overhead('zzz') : ''}<g${mono ? ' filter="url(#mono)"' : ''}>${bodyShapes(body)}${eyes(d.eyes)}</g>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-  <defs><filter id="mono" x="-25%" y="-25%" width="150%" height="150%"><feMorphology in="SourceAlpha" operator="dilate" radius="3.5" result="d"/><feFlood flood-color="${BLACK}" result="w"/><feComposite in="w" in2="d" operator="in" result="o"/><feMerge><feMergeNode in="o"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-  <rect width="${W}" height="${H}" fill="${PAPER}"/>
-  <svg x="2" y="4" width="62" height="54" viewBox="0 0 240 210">${clawd}</svg>
-  <text x="4" y="76" font-family="monospace" font-weight="bold" font-size="10" fill="${BLACK}">Nv.${d.level} · ${d.age}</text>
-  ${statLine(4, 86, 'REP', d.repu)}
-  ${statLine(4, 104, 'JOI', d.joie)}
-  <rect x="72" y="4" width="1.5" height="112" fill="${BLACK}"/>
-  ${barCompact(rx, 14, rw, '5 H', d.five, d.fiveReset, !mono)}
-  ${barCompact(rx, 54, rw, '7 J', d.seven, d.sevenReset, !mono)}
-  <text x="${rx}" y="102" font-family="monospace" font-size="9" fill="${BLACK}">Stats :</text>
-  ${statLine(rx + 42, 96, 'ENE', 100 - d.five)}
-  ${statLine(rx + 106, 96, 'FOR', 100 - d.seven)}
-</svg>`;
+function demoData(palette, extra = {}) {
+  return {
+    mono: palette === 'bw',
+    red: palette === 'bwr',
+    online: true,
+    pose: { title: 'Content', eyes: 'happy', overhead: 'none' },
+    time: '14:32',
+    five: 47, fiveReset: '2h 45',
+    seven: 63, sevenReset: '4j 2h',
+    level: 3, age: '18 j', repu: 92, joie: 80,
+    ...extra,
+  };
 }
 
 /* ------------------------------ planche des poses ------------------------------ */
@@ -250,19 +183,22 @@ function png(svg, width) {
 mkdirSync('docs', { recursive: true });
 
 // Aperçus e-paper compacts (2.13", rendus en x3 pour la netteté du README).
-writeFileSync(
-  'docs/epaper-color.png',
-  png(compactPanel({ palette: 'bwr', eyes: 'happy', five: 47, fiveReset: '2h45', seven: 63, sevenReset: '4j 2h', level: 3, age: '18 j', repu: 92, joie: 80 }), 750),
-);
+writeFileSync('docs/epaper-color.png', rasterizeSvg(buildCompact(demoData('bwr'), 0), 750));
 writeFileSync(
   'docs/epaper-bw.png',
-  png(compactPanel({ palette: 'bw', eyes: 'sleep', overhead: 'zzz', five: 8, fiveReset: '3h10', seven: 22, sevenReset: '5j 6h', level: 3, age: '18 j', repu: 40, joie: 66 }), 750),
+  rasterizeSvg(
+    buildCompact(
+      demoData('bw', {
+        pose: { title: 'Dodo', eyes: 'sleep', overhead: 'zzz' },
+        five: 8, fiveReset: '3h10', seven: 22, sevenReset: '5j 6h', repu: 40, joie: 66,
+      }),
+      0,
+    ),
+    750,
+  ),
 );
 // Rendu grand format (7.5") pour référence.
-writeFileSync(
-  'docs/epaper-full.png',
-  png(panel({ palette: 'bwr', title: 'Content', eyes: 'happy', time: '14:32', five: 47, fiveReset: '2h 45', seven: 63, sevenReset: '4j 2h', level: 3, age: '18 j', repu: 92, joie: 80 })),
-);
+writeFileSync('docs/epaper-full.png', rasterizeSvg(buildFull(demoData('bwr'), 0), 800));
 writeFileSync('docs/mascot-poses.png', png(posesSheet(), 900));
 
 console.log('OK — docs/epaper-{color,bw,full}.png, docs/mascot-poses.png');

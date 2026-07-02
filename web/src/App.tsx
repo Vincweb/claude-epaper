@@ -134,12 +134,10 @@ export default function App() {
       >
         {view === 'epaper' ? (
           <EpaperView
-            snap={snap}
-            pose={pose}
             palette={config.epaperPalette}
-            stats={stats}
-            level={age.level}
-            ageLabel={age.label}
+            layout={config.epaperLayout}
+            rotate={config.epaperRotate}
+            version={state?.lastFetchedAt ?? ''}
           />
         ) : view === 'styles' ? (
           <StylesGallery />

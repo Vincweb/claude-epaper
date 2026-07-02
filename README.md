@@ -164,9 +164,13 @@ Réglages (variables d'environnement du service) :
 | `EPAPER_PUSH` | `1` | `0` pour désactiver la boucle (machine sans dalle) |
 | `EPD_MODEL` | `epd2in13_V4` | module `waveshare_epd` de ta dalle |
 | `POLL_SECONDS` | `30` | intervalle de tirage |
-| `FULL_REFRESH_EVERY` | `30` | refresh complet tous les N partiels |
-| `FULL_REFRESH_SECONDS` | `3600` | refresh complet au moins toutes les X s |
-| `RENDER_URL` | `http://localhost:8787/api/render.png` | URL du PNG (local au conteneur) |
+| `FULL_REFRESH_EVERY` | `20` | refresh complet tous les N partiels (anti-ghosting) |
+| `FULL_REFRESH_SECONDS` | `1800` | refresh complet au moins toutes les X s |
+| `EPAPER_THRESHOLD` | `160` | seuil de binarisation 0-255 (sous le seuil → noir) |
+| `REQUEST_TIMEOUT` | `20` | timeout (s) du fetch du PNG |
+| `RENDER_URL` | `http://localhost:8787/api/render.png?palette=bw` | URL du PNG (local au conteneur) |
+
+> Le rendu serveur est généré **sans anti-aliasing** (chaque pixel est décidé) : ce que montre l'onglet **e-paper** du dashboard est exactement ce que la dalle reçoit. Dalle montée à l'envers ? Coche **Rotation 180°** dans ⚙︎ Config.
 
 ### Alternative : sans Docker (natif + systemd)
 

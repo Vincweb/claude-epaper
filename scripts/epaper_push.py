@@ -40,10 +40,13 @@ RENDER_URL = os.environ.get(
 )
 EPD_MODEL = os.environ.get("EPD_MODEL", "epd2in13_V4")
 POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "30"))
-FULL_REFRESH_EVERY = int(os.environ.get("FULL_REFRESH_EVERY", "30"))
-FULL_REFRESH_SECONDS = int(os.environ.get("FULL_REFRESH_SECONDS", "3600"))
+FULL_REFRESH_EVERY = int(os.environ.get("FULL_REFRESH_EVERY", "20"))
+FULL_REFRESH_SECONDS = int(os.environ.get("FULL_REFRESH_SECONDS", "1800"))
 # Le 1er rendu peut être lent au démarrage (Pi Zero) → timeout large.
 REQUEST_TIMEOUT = int(os.environ.get("REQUEST_TIMEOUT", "20"))
+# Seuil de binarisation (0-255) : sous le seuil → noir. Le rendu serveur est
+# déjà sans anti-aliasing ; 160 absorbe les rares gris restants (filtre).
+THRESHOLD = int(os.environ.get("EPAPER_THRESHOLD", "160"))
 
 
 def load_epd():
@@ -65,7 +68,10 @@ def fetch_image(width, height):
     """
     png = requests.get(RENDER_URL, timeout=REQUEST_TIMEOUT).content
     digest = hashlib.md5(png).digest()
-    img = Image.open(io.BytesIO(png)).convert("1", dither=Image.NONE)
+    gray = Image.open(io.BytesIO(png)).convert("L")
+    img = gray.point(lambda p: 255 if p >= THRESHOLD else 0).convert(
+        "1", dither=Image.NONE
+    )
     if img.size not in ((width, height), (height, width)):
         img = img.resize((height, width))
     return img, digest

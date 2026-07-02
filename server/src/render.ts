@@ -66,19 +66,22 @@ function clawdSvg(pose: Pose, mono: boolean): string {
 // autrement trop fin pour l'e-ink.
 const MONO_FILTER = `<filter id="mono" x="-25%" y="-25%" width="150%" height="150%"><feMorphology in="SourceAlpha" operator="dilate" radius="6" result="d"/><feFlood flood-color="${INK}" result="w"/><feComposite in="w" in2="d" operator="in" result="o"/><feMerge><feMergeNode in="o"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
 
-/** Enveloppe SVG commune : fond, contenu, cadre noir, rotation optionnelle. */
+/** Enveloppe SVG commune : fond, contenu, cadre noir, rotation optionnelle.
+ * crispEdges/optimizeSpeed désactivent l'anti-aliasing : chaque pixel sort
+ * déjà noir ou blanc, la binarisation e-ink ne ronge plus les glyphes. */
 function svgDoc(W: number, H: number, inner: string, rotate: 0 | 180, border: number): string {
   const frame = `<rect x="${border / 2}" y="${border / 2}" width="${W - border}" height="${H - border}" fill="none" stroke="${INK}" stroke-width="${border}"/>`;
   const content = `${inner}${frame}`;
   const body = rotate === 180 ? `<g transform="rotate(180 ${W / 2} ${H / 2})">${content}</g>` : content;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><defs>${MONO_FILTER}</defs><rect width="${W}" height="${H}" fill="${PAPER}"/>${body}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" shape-rendering="crispEdges" text-rendering="optimizeSpeed"><defs>${MONO_FILTER}</defs><rect width="${W}" height="${H}" fill="${PAPER}"/>${body}</svg>`;
 }
 
 // --- Données courantes ---
 
-interface PanelData {
+export interface PanelData {
   mono: boolean;
   red: boolean; // rouge autorisé (bwr) pour les alertes de barre
+  online: boolean; // usage réel récupéré (credentials OK, pas d'erreur)
   pose: Pose;
   time: string;
   five: number;
@@ -104,6 +107,7 @@ function gatherData(paletteOverride?: 'bw' | 'bwr'): PanelData {
   return {
     mono: palette === 'bw',
     red: palette === 'bwr',
+    online: Boolean(st.snapshot) && st.authenticated && !st.lastError,
     pose,
     time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
     five: Math.round(five.utilization),
@@ -138,13 +142,14 @@ function barRowFull(x: number, y: number, w: number, label: string, v: number, r
     <text x="${x}" y="${y + 54}" font-family="monospace" font-size="15" fill="${INK}">reset ${reset}</text>`;
 }
 
-function buildFull(d: PanelData, rotate: 0 | 180): string {
+export function buildFull(d: PanelData, rotate: 0 | 180): string {
   const W = 800, H = 480, pad = 28, rx = 330, rw = W - rx - pad;
   const title = d.pose.title.toUpperCase();
   const inner = `
   <text x="${pad}" y="${pad + 26}" font-family="monospace" font-weight="bold" font-size="26" letter-spacing="4" fill="${INK}">CLAUDE CODE</text>
   <text x="${W - pad}" y="${pad + 24}" text-anchor="end" font-family="monospace" font-size="18" fill="${INK}">${d.time}</text>
   <rect x="${pad}" y="${pad + 40}" width="${W - 2 * pad}" height="3" fill="${INK}"/>
+  <text x="173" y="86" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="13" fill="${INK}">${d.online ? '● online' : '○ offline'}</text>
   <svg x="${pad}" y="90" width="290" height="255" viewBox="0 0 240 210">${clawdSvg(d.pose, d.mono)}</svg>
   <rect x="${pad + 20}" y="352" width="${title.length * 15 + 24}" height="30" fill="${INK}"/>
   <text x="${pad + 32}" y="373" font-family="monospace" font-weight="bold" font-size="16" letter-spacing="2" fill="${PAPER}">${title}</text>
@@ -160,7 +165,7 @@ function buildFull(d: PanelData, rotate: 0 | 180): string {
 // --- Panneau compact (Waveshare 2.13", 250x122) ---
 
 /** Mini jauge à cellules pour le format compact. */
-function meterCellsSmall(x: number, y: number, value: number, cells = 4, cw = 5, ch = 6, gap = 2): string {
+function meterCellsSmall(x: number, y: number, value: number, cells = 4, cw = 6, ch = 7, gap = 2): string {
   const filled = Math.round((value / 100) * cells);
   let s = '';
   for (let i = 0; i < cells; i++)
@@ -169,33 +174,34 @@ function meterCellsSmall(x: number, y: number, value: number, cells = 4, cw = 5,
 }
 
 function statLineCompact(x: number, y: number, label: string, value: number): string {
-  return `<text x="${x}" y="${y + 6}" font-family="monospace" font-size="8" fill="${INK}">${label}</text>${meterCellsSmall(x + 24, y, value)}`;
+  return `<text x="${x}" y="${y + 7}" font-family="monospace" font-weight="bold" font-size="9" fill="${INK}">${label}</text>${meterCellsSmall(x + 26, y, value)}`;
 }
 
 function barRowCompact(x: number, y: number, w: number, label: string, v: number, reset: string, red: boolean): string {
   const fill = red && v >= 90 ? RED : INK;
   return `
-    <text x="${x}" y="${y}" font-family="monospace" font-size="12" fill="${INK}">${label}</text>
-    <text x="${x + w}" y="${y + 2}" text-anchor="end" font-family="monospace" font-weight="bold" font-size="20" fill="${INK}">${v}%</text>
-    <rect x="${x}" y="${y + 6}" width="${w}" height="11" fill="${PAPER}" stroke="${INK}" stroke-width="2"/>
-    <rect x="${x + 2}" y="${y + 8}" width="${(w - 4) * (v / 100)}" height="7" fill="${fill}"/>
-    <text x="${x}" y="${y + 27}" font-family="monospace" font-size="10" fill="${INK}">reset ${reset}</text>`;
+    <text x="${x}" y="${y}" font-family="monospace" font-weight="bold" font-size="13" fill="${INK}">${label}</text>
+    <text x="${x + w}" y="${y + 2}" text-anchor="end" font-family="monospace" font-weight="bold" font-size="22" fill="${INK}">${v}%</text>
+    <rect x="${x}" y="${y + 6}" width="${w}" height="13" fill="${PAPER}" stroke="${INK}" stroke-width="2"/>
+    <rect x="${x + 2}" y="${y + 8}" width="${(w - 4) * (v / 100)}" height="9" fill="${fill}"/>
+    <text x="${x}" y="${y + 31}" font-family="monospace" font-weight="bold" font-size="10" fill="${INK}">reset ${reset}</text>`;
 }
 
-function buildCompact(d: PanelData, rotate: 0 | 180): string {
+export function buildCompact(d: PanelData, rotate: 0 | 180): string {
   const W = 250, H = 122;
   const rx = 80, rw = 162;
   const inner = `
-  <svg x="6" y="6" width="62" height="54" viewBox="0 0 240 210">${clawdSvg(d.pose, d.mono)}</svg>
-  <text x="8" y="78" font-family="monospace" font-weight="bold" font-size="10" fill="${INK}">Nv.${d.level} · ${d.age}</text>
-  ${statLineCompact(8, 88, 'REP', d.repu)}
-  ${statLineCompact(8, 106, 'JOI', d.joie)}
-  <rect x="72" y="6" width="2.5" height="110" fill="${INK}"/>
-  ${barRowCompact(rx, 16, rw, '5 H', d.five, d.fiveReset, d.red)}
-  ${barRowCompact(rx, 56, rw, '7 J', d.seven, d.sevenReset, d.red)}
-  <text x="${rx}" y="104" font-family="monospace" font-size="9" fill="${INK}">Stats :</text>
-  ${statLineCompact(rx + 42, 98, 'ENE', 100 - d.five)}
-  ${statLineCompact(rx + 106, 98, 'FOR', 100 - d.seven)}`;
+  <text x="37" y="14" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="9" fill="${INK}">${d.online ? '● online' : '○ offline'}</text>
+  <svg x="4" y="17" width="67" height="59" viewBox="0 0 240 210">${clawdSvg(d.pose, d.mono)}</svg>
+  <text x="37" y="87" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="10" fill="${INK}">Nv.${d.level} · ${d.age}</text>
+  ${statLineCompact(8, 93, 'REP', d.repu)}
+  ${statLineCompact(8, 107, 'JOI', d.joie)}
+  <rect x="72.5" y="6" width="2" height="110" fill="${INK}"/>
+  ${barRowCompact(rx, 19, rw, '5 H', d.five, d.fiveReset, d.red)}
+  ${barRowCompact(rx, 63, rw, '7 J', d.seven, d.sevenReset, d.red)}
+  <text x="${rx}" y="110" font-family="monospace" font-weight="bold" font-size="9" fill="${INK}">Stats:</text>
+  ${statLineCompact(124, 103, 'ENE', 100 - d.five)}
+  ${statLineCompact(190, 103, 'FOR', 100 - d.seven)}`;
   return svgDoc(W, H, inner, rotate, 3);
 }
 
@@ -213,14 +219,11 @@ export function buildEpaperSvg(opts: RenderOpts = {}): string {
   return layout === 'full' ? buildFull(data, rotate) : buildCompact(data, rotate);
 }
 
-/** Rastérise le panneau courant en PNG. `scale` agrandit (aperçu net). */
-export function renderEpaperPng(opts: RenderOpts & { scale?: number } = {}): Buffer {
-  const svg = buildEpaperSvg(opts);
-  const layout = opts.layout ?? loadConfig().epaperLayout;
-  const baseW = layout === 'full' ? 800 : 250;
+/** Rastérise un SVG avec la police embarquée (rendu déterministe partout). */
+export function rasterizeSvg(svg: string, widthPx: number): Buffer {
   const resvg = new Resvg(svg, {
     background: PAPER,
-    fitTo: { mode: 'width', value: Math.round(baseW * (opts.scale ?? 1)) },
+    fitTo: { mode: 'width', value: widthPx },
     // La police générique "monospace" du SVG est mappée sur la DejaVu embarquée.
     // loadSystemFonts:false = rendu déterministe + init plus rapide (Pi Zero).
     font: {
@@ -231,4 +234,12 @@ export function renderEpaperPng(opts: RenderOpts & { scale?: number } = {}): Buf
     },
   });
   return Buffer.from(resvg.render().asPng());
+}
+
+/** Rastérise le panneau courant en PNG. `scale` agrandit (aperçu net). */
+export function renderEpaperPng(opts: RenderOpts & { scale?: number } = {}): Buffer {
+  const svg = buildEpaperSvg(opts);
+  const layout = opts.layout ?? loadConfig().epaperLayout;
+  const baseW = layout === 'full' ? 800 : 250;
+  return rasterizeSvg(svg, Math.round(baseW * (opts.scale ?? 1)));
 }

@@ -19,8 +19,9 @@ services:
       - EPAPER_PUSH=1
       - EPD_MODEL=epd2in13_V4
       - POLL_SECONDS=30
-      - FULL_REFRESH_EVERY=30
-      - FULL_REFRESH_SECONDS=3600
+      - FULL_REFRESH_EVERY=20
+      - FULL_REFRESH_SECONDS=1800
+      - EPAPER_THRESHOLD=160
     volumes:
       # Persistance config + credentials gérés par l'app.
       - ./data:/data
