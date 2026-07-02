@@ -21,9 +21,10 @@ RUN git clone --depth 1 https://github.com/waveshareteam/e-Paper.git /tmp/epaper
 FROM node:22-bookworm-slim
 WORKDIR /app
 
-# Node : polices pour resvg. Python : runtime + libs SPI/GPIO + deps Pillow.
+# Python : runtime + libs SPI/GPIO + deps Pillow. (resvg utilise la police
+# DejaVu embarquée dans server/fonts, pas les polices système.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates fonts-dejavu-core \
+      ca-certificates \
       python3 python3-pip python3-dev \
       gcc libjpeg62-turbo zlib1g \
   && rm -rf /var/lib/apt/lists/*
@@ -47,6 +48,7 @@ COPY package.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/server/package.json ./server/
 COPY --from=build /app/server/dist ./server/dist
+COPY --from=build /app/server/fonts ./server/fonts
 COPY --from=build /app/web/dist ./web/dist
 COPY --from=waveshare /tmp/epaper/RaspberryPi_JetsonNano/python/lib/waveshare_epd /app/waveshare_epd
 COPY scripts/epaper_push.py /app/epaper_push.py

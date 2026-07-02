@@ -12,7 +12,8 @@ apiRouter.get('/render.png', (req, res) => {
     const layout = req.query.layout === 'full' || req.query.layout === 'compact' ? req.query.layout : undefined;
     const palette = req.query.palette === 'bw' || req.query.palette === 'bwr' ? req.query.palette : undefined;
     const scale = req.query.scale ? Math.min(6, Math.max(1, Number(req.query.scale))) : undefined;
-    const png = renderEpaperPng({ layout, palette, scale });
+    const rotate = req.query.rotate === '180' ? 180 : req.query.rotate === '0' ? 0 : undefined;
+    const png = renderEpaperPng({ layout, palette, scale, rotate });
     res.set('Content-Type', 'image/png');
     res.set('Cache-Control', 'no-store');
     res.send(png);

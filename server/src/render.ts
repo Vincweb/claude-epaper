@@ -1,6 +1,12 @@
+import { fileURLToPath } from 'node:url';
 import { Resvg } from '@resvg/resvg-js';
 import { poller } from './poller.js';
 import { loadConfig } from './config.js';
+
+// Polices embarquées (server/fonts) → rendu identique partout, sans dépendre
+// des polices système. Chemin résolu depuis dist/ comme depuis src/.
+const FONT_DIR = fileURLToPath(new URL('../fonts/', import.meta.url));
+const FONT_FILES = [`${FONT_DIR}DejaVuSansMono.ttf`, `${FONT_DIR}DejaVuSansMono-Bold.ttf`];
 import { deriveStats, formatReset, levelInfo, selectPose, type ClawdEyes, type Pose } from './mascot.js';
 
 const INK = '#000000';
@@ -56,7 +62,17 @@ function clawdSvg(pose: Pose, mono: boolean): string {
   return `${zzz}<g${filter}>${bodyShapes}</g>`;
 }
 
-const MONO_FILTER = `<filter id="mono" x="-25%" y="-25%" width="150%" height="150%"><feMorphology in="SourceAlpha" operator="dilate" radius="3.5" result="d"/><feFlood flood-color="${INK}" result="w"/><feComposite in="w" in2="d" operator="in" result="o"/><feMerge><feMergeNode in="o"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+// radius élevé : à la taille compacte (crabe ~62px) le contour resterait
+// autrement trop fin pour l'e-ink.
+const MONO_FILTER = `<filter id="mono" x="-25%" y="-25%" width="150%" height="150%"><feMorphology in="SourceAlpha" operator="dilate" radius="6" result="d"/><feFlood flood-color="${INK}" result="w"/><feComposite in="w" in2="d" operator="in" result="o"/><feMerge><feMergeNode in="o"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+
+/** Enveloppe SVG commune : fond, contenu, cadre noir, rotation optionnelle. */
+function svgDoc(W: number, H: number, inner: string, rotate: 0 | 180, border: number): string {
+  const frame = `<rect x="${border / 2}" y="${border / 2}" width="${W - border}" height="${H - border}" fill="none" stroke="${INK}" stroke-width="${border}"/>`;
+  const content = `${inner}${frame}`;
+  const body = rotate === 180 ? `<g transform="rotate(180 ${W / 2} ${H / 2})">${content}</g>` : content;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><defs>${MONO_FILTER}</defs><rect width="${W}" height="${H}" fill="${PAPER}"/>${body}</svg>`;
+}
 
 // --- Données courantes ---
 
@@ -122,12 +138,10 @@ function barRowFull(x: number, y: number, w: number, label: string, v: number, r
     <text x="${x}" y="${y + 54}" font-family="monospace" font-size="15" fill="${INK}">reset ${reset}</text>`;
 }
 
-function buildFull(d: PanelData): string {
+function buildFull(d: PanelData, rotate: 0 | 180): string {
   const W = 800, H = 480, pad = 28, rx = 330, rw = W - rx - pad;
   const title = d.pose.title.toUpperCase();
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-  <defs>${MONO_FILTER}</defs>
-  <rect width="${W}" height="${H}" fill="${PAPER}"/>
+  const inner = `
   <text x="${pad}" y="${pad + 26}" font-family="monospace" font-weight="bold" font-size="26" letter-spacing="4" fill="${INK}">CLAUDE CODE</text>
   <text x="${W - pad}" y="${pad + 24}" text-anchor="end" font-family="monospace" font-size="18" fill="${INK}">${d.time}</text>
   <rect x="${pad}" y="${pad + 40}" width="${W - 2 * pad}" height="3" fill="${INK}"/>
@@ -139,8 +153,8 @@ function buildFull(d: PanelData): string {
   <rect x="${pad}" y="${H - 70}" width="${W - 2 * pad}" height="3" fill="${INK}"/>
   <text x="${pad}" y="${H - 38}" font-family="monospace" font-weight="bold" font-size="18" fill="${INK}">NIVEAU ${d.level} · ${d.age}</text>
   <text x="${rx}" y="${H - 38}" font-family="monospace" font-size="15" fill="${INK}">REPU</text>${meterCells(rx + 55, H - 52, d.repu)}
-  <text x="${rx + 200}" y="${H - 38}" font-family="monospace" font-size="15" fill="${INK}">JOIE</text>${meterCells(rx + 250, H - 52, d.joie)}
-</svg>`;
+  <text x="${rx + 200}" y="${H - 38}" font-family="monospace" font-size="15" fill="${INK}">JOIE</text>${meterCells(rx + 250, H - 52, d.joie)}`;
+  return svgDoc(W, H, inner, rotate, 4);
 }
 
 // --- Panneau compact (Waveshare 2.13", 250x122) ---
@@ -168,34 +182,35 @@ function barRowCompact(x: number, y: number, w: number, label: string, v: number
     <text x="${x}" y="${y + 27}" font-family="monospace" font-size="10" fill="${INK}">reset ${reset}</text>`;
 }
 
-function buildCompact(d: PanelData): string {
+function buildCompact(d: PanelData, rotate: 0 | 180): string {
   const W = 250, H = 122;
-  const rx = 80, rw = 166;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-  <defs>${MONO_FILTER}</defs>
-  <rect width="${W}" height="${H}" fill="${PAPER}"/>
-  <svg x="2" y="4" width="62" height="54" viewBox="0 0 240 210">${clawdSvg(d.pose, d.mono)}</svg>
-  <text x="4" y="76" font-family="monospace" font-weight="bold" font-size="10" fill="${INK}">Nv.${d.level} · ${d.age}</text>
-  ${statLineCompact(4, 86, 'REP', d.repu)}
-  ${statLineCompact(4, 104, 'JOI', d.joie)}
-  <rect x="72" y="4" width="1.5" height="112" fill="${INK}"/>
-  ${barRowCompact(rx, 14, rw, '5 H', d.five, d.fiveReset, d.red)}
-  ${barRowCompact(rx, 54, rw, '7 J', d.seven, d.sevenReset, d.red)}
-  <text x="${rx}" y="102" font-family="monospace" font-size="9" fill="${INK}">Stats :</text>
-  ${statLineCompact(rx + 42, 96, 'ENE', 100 - d.five)}
-  ${statLineCompact(rx + 106, 96, 'FOR', 100 - d.seven)}
-</svg>`;
+  const rx = 80, rw = 162;
+  const inner = `
+  <svg x="6" y="6" width="62" height="54" viewBox="0 0 240 210">${clawdSvg(d.pose, d.mono)}</svg>
+  <text x="8" y="78" font-family="monospace" font-weight="bold" font-size="10" fill="${INK}">Nv.${d.level} · ${d.age}</text>
+  ${statLineCompact(8, 88, 'REP', d.repu)}
+  ${statLineCompact(8, 106, 'JOI', d.joie)}
+  <rect x="72" y="6" width="2.5" height="110" fill="${INK}"/>
+  ${barRowCompact(rx, 16, rw, '5 H', d.five, d.fiveReset, d.red)}
+  ${barRowCompact(rx, 56, rw, '7 J', d.seven, d.sevenReset, d.red)}
+  <text x="${rx}" y="104" font-family="monospace" font-size="9" fill="${INK}">Stats :</text>
+  ${statLineCompact(rx + 42, 98, 'ENE', 100 - d.five)}
+  ${statLineCompact(rx + 106, 98, 'FOR', 100 - d.seven)}`;
+  return svgDoc(W, H, inner, rotate, 3);
 }
 
 export interface RenderOpts {
   layout?: 'compact' | 'full';
   palette?: 'bw' | 'bwr';
+  rotate?: 0 | 180;
 }
 
 export function buildEpaperSvg(opts: RenderOpts = {}): string {
-  const layout = opts.layout ?? loadConfig().epaperLayout;
+  const cfg = loadConfig();
+  const layout = opts.layout ?? cfg.epaperLayout;
+  const rotate = opts.rotate ?? cfg.epaperRotate ?? 0;
   const data = gatherData(opts.palette);
-  return layout === 'full' ? buildFull(data) : buildCompact(data);
+  return layout === 'full' ? buildFull(data, rotate) : buildCompact(data, rotate);
 }
 
 /** Rastérise le panneau courant en PNG. `scale` agrandit (aperçu net). */
@@ -206,7 +221,14 @@ export function renderEpaperPng(opts: RenderOpts & { scale?: number } = {}): Buf
   const resvg = new Resvg(svg, {
     background: PAPER,
     fitTo: { mode: 'width', value: Math.round(baseW * (opts.scale ?? 1)) },
-    font: { loadSystemFonts: true, defaultFontFamily: 'monospace' },
+    // La police générique "monospace" du SVG est mappée sur la DejaVu embarquée.
+    // loadSystemFonts:false = rendu déterministe + init plus rapide (Pi Zero).
+    font: {
+      loadSystemFonts: false,
+      fontFiles: FONT_FILES,
+      defaultFontFamily: 'DejaVu Sans Mono',
+      monospaceFamily: 'DejaVu Sans Mono',
+    },
   });
   return Buffer.from(resvg.render().asPng());
 }

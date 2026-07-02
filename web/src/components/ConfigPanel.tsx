@@ -160,6 +160,15 @@ export function ConfigPanel({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
+          <label className="flex items-center justify-between gap-2 text-sm">
+            <span>Rotation 180° (dalle montée à l'envers)</span>
+            <input
+              type="checkbox"
+              checked={cfg.epaperRotate === 180}
+              onChange={(e) => patch({ epaperRotate: e.target.checked ? 180 : 0 })}
+            />
+          </label>
+
           <div className="flex items-center gap-3 border-t border-white/10 pt-3">
             <button
               onClick={doImport}

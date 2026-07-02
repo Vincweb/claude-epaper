@@ -42,6 +42,8 @@ EPD_MODEL = os.environ.get("EPD_MODEL", "epd2in13_V4")
 POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "30"))
 FULL_REFRESH_EVERY = int(os.environ.get("FULL_REFRESH_EVERY", "30"))
 FULL_REFRESH_SECONDS = int(os.environ.get("FULL_REFRESH_SECONDS", "3600"))
+# Le 1er rendu peut être lent au démarrage (Pi Zero) → timeout large.
+REQUEST_TIMEOUT = int(os.environ.get("REQUEST_TIMEOUT", "20"))
 
 
 def load_epd():
@@ -61,7 +63,7 @@ def fetch_image(width, height):
     on laisse donc le rendu paysage tel quel et on ne redimensionne qu'en
     dernier recours (taille inattendue), sinon on écraserait le contenu.
     """
-    png = requests.get(RENDER_URL, timeout=10).content
+    png = requests.get(RENDER_URL, timeout=REQUEST_TIMEOUT).content
     digest = hashlib.md5(png).digest()
     img = Image.open(io.BytesIO(png)).convert("1", dither=Image.NONE)
     if img.size not in ((width, height), (height, width)):

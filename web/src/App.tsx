@@ -26,6 +26,7 @@ const DEFAULT_CONFIG: AppConfig = {
   display: 'null',
   epaperPalette: 'bwr',
   epaperLayout: 'compact',
+  epaperRotate: 0,
   birthday: '',
   inactivityMinutes: 30,
   rotateMinutes: 30,
