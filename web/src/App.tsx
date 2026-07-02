@@ -25,6 +25,7 @@ const DEFAULT_CONFIG: AppConfig = {
   thresholds: { alert: 50, worried: 75, panic: 90 },
   display: 'null',
   epaperPalette: 'bwr',
+  epaperLayout: 'compact',
   birthday: '',
   inactivityMinutes: 30,
   rotateMinutes: 30,

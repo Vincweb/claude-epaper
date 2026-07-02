@@ -13,7 +13,12 @@
 ![Docker](https://img.shields.io/badge/Docker-CasaOS-2496ED?logo=docker&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-<img src="docs/mascot-poses.png" width="720" alt="Les poses de Clawd" />
+<br/>
+
+<em>Le rendu sur écran e-paper 2.13" — noir/blanc/rouge ou noir & blanc :</em>
+
+<img src="docs/epaper-color.png" width="380" alt="Rendu e-paper couleur" />
+<img src="docs/epaper-bw.png" width="380" alt="Rendu e-paper noir et blanc" />
 
 </div>
 
@@ -37,15 +42,24 @@ Le tout est incarné par **Clawd**, la mascotte crabe de Claude Code, qui change
 - 🌐 **Dashboard web + PWA** — jauges, personnage animé, page de config, installable avec icône.
 - 🐳 **Docker / CasaOS** — image multi-stage prête à déployer.
 
-## 📸 Aperçu
+## 🦀 Clawd & ses humeurs
 
-Le rendu envoyé à l'écran e-paper, en deux palettes :
+<div align="center"><img src="docs/mascot-poses.png" width="760" alt="Les poses de Clawd" /></div>
 
-| Noir / blanc / rouge | Noir & blanc |
-| :---: | :---: |
-| <img src="docs/epaper-color.png" width="400" /> | <img src="docs/epaper-bw.png" width="400" /> |
+Clawd ne se contente pas d'afficher un pourcentage : il **vit**. Sa pose est
+choisie automatiquement selon le contexte (jamais selon le stress de la limite) :
 
-Chaque pose existe en **version couleur** (écran) et en **version noir & blanc** distincte (line-art pour l'e-ink).
+- 🔄 **Rotation** — il change de pose au fil de la journée (intervalle réglable).
+- ☕ **Pause café** — uniquement le matin.
+- 😴 **Dodo** — la nuit, ou après un moment sans activité.
+- 🎂 **Anniversaire** — la pose spéciale le jour J (date en config).
+- ☀️/☔ **Au soleil / sous la pluie**, 😘 **bisou**, 🪄 **magie**… au gré de la rotation.
+
+Chaque pose existe en **version couleur** (écran) et en **version noir & blanc**
+distincte — un vrai line-art pour l'e-ink, pas une simple désaturation.
+
+> Le rendu compact ci-dessus vise l'écran **2.13"** (250×122). Un layout **grand
+> format 7.5"** existe aussi (`docs/epaper-full.png`), sélectionnable en config.
 
 ## 🧩 Comment ça marche
 

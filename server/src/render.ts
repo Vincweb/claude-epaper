@@ -2,7 +2,6 @@ import { Resvg } from '@resvg/resvg-js';
 import { poller } from './poller.js';
 import { loadConfig } from './config.js';
 import { deriveStats, formatReset, levelInfo, selectPose, type ClawdEyes, type Pose } from './mascot.js';
-import type { UsageSnapshot } from './types.js';
 
 const INK = '#000000';
 const PAPER = '#ffffff';
@@ -57,91 +56,138 @@ function clawdSvg(pose: Pose, mono: boolean): string {
   return `${zzz}<g${filter}>${bodyShapes}</g>`;
 }
 
-// --- Petit compteur à cellules (repu / joie) ---
+const MONO_FILTER = `<filter id="mono" x="-25%" y="-25%" width="150%" height="150%"><feMorphology in="SourceAlpha" operator="dilate" radius="3.5" result="d"/><feFlood flood-color="${INK}" result="w"/><feComposite in="w" in2="d" operator="in" result="o"/><feMerge><feMergeNode in="o"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+
+// --- Données courantes ---
+
+interface PanelData {
+  mono: boolean;
+  red: boolean; // rouge autorisé (bwr) pour les alertes de barre
+  pose: Pose;
+  time: string;
+  five: number;
+  fiveReset: string;
+  seven: number;
+  sevenReset: string;
+  level: number;
+  age: string;
+  repu: number;
+  joie: number;
+}
+
+function gatherData(paletteOverride?: 'bw' | 'bwr'): PanelData {
+  const cfg = loadConfig();
+  const st = poller.state;
+  const snap = st.snapshot;
+  const palette = paletteOverride ?? cfg.epaperPalette;
+  const pose = selectPose({ now: new Date(), config: cfg, lastActivityAt: st.lastActivityAt });
+  const stats = deriveStats(snap, st.lastActivityAt);
+  const { level, label: age } = levelInfo(cfg.bornAt, st.usageXp);
+  const five = snap?.fiveHour ?? { utilization: 0, resetsAt: null };
+  const seven = snap?.sevenDay ?? { utilization: 0, resetsAt: null };
+  return {
+    mono: palette === 'bw',
+    red: palette === 'bwr',
+    pose,
+    time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+    five: Math.round(five.utilization),
+    fiveReset: formatReset(five.resetsAt),
+    seven: Math.round(seven.utilization),
+    sevenReset: formatReset(seven.resetsAt),
+    level,
+    age,
+    repu: stats.find((s) => s.key === 'repu')?.value ?? 0,
+    joie: stats.find((s) => s.key === 'bonheur')?.value ?? 0,
+  };
+}
+
+// --- Grand panneau (800x480) ---
+
 function meterCells(x: number, y: number, value: number, cells = 6, cw = 12, ch = 12, gap = 3): string {
   const filled = Math.round((value / 100) * cells);
   let s = '';
   for (let i = 0; i < cells; i++) {
-    const cx = x + i * (cw + gap);
-    s += `<rect x="${cx}" y="${y}" width="${cw}" height="${ch}" fill="${i < filled ? INK : PAPER}" stroke="${INK}" stroke-width="1.5"/>`;
+    s += `<rect x="${x + i * (cw + gap)}" y="${y}" width="${cw}" height="${ch}" fill="${i < filled ? INK : PAPER}" stroke="${INK}" stroke-width="1.5"/>`;
   }
   return s;
 }
 
-function barRow(x: number, y: number, w: number, label: string, pct: number, reset: string, palette: 'bw' | 'bwr'): string {
-  const v = Math.max(0, Math.min(100, pct));
-  const fill = palette === 'bwr' && v >= 90 ? RED : INK;
+function barRowFull(x: number, y: number, w: number, label: string, v: number, reset: string, red: boolean): string {
+  const fill = red && v >= 90 ? RED : INK;
   return `
     <text x="${x}" y="${y}" font-family="monospace" font-size="18" letter-spacing="1" fill="${INK}">${label}</text>
-    <text x="${x + w}" y="${y}" text-anchor="end" font-family="monospace" font-weight="bold" font-size="34" fill="${INK}">${Math.round(v)}%</text>
+    <text x="${x + w}" y="${y}" text-anchor="end" font-family="monospace" font-weight="bold" font-size="34" fill="${INK}">${v}%</text>
     <rect x="${x}" y="${y + 12}" width="${w}" height="22" fill="${PAPER}" stroke="${INK}" stroke-width="3"/>
     <rect x="${x + 3}" y="${y + 15}" width="${(w - 6) * (v / 100)}" height="16" fill="${fill}"/>
     <text x="${x}" y="${y + 54}" font-family="monospace" font-size="15" fill="${INK}">reset ${reset}</text>`;
 }
 
-export interface RenderOpts {
-  width?: number;
-  height?: number;
-}
-
-/** Construit le SVG complet du panneau e-paper à partir de l'état courant. */
-export function buildEpaperSvg({ width = 800, height = 480 }: RenderOpts = {}): string {
-  const cfg = loadConfig();
-  const st = poller.state;
-  const snap: UsageSnapshot | null = st.snapshot;
-  const mono = cfg.epaperPalette === 'bw';
-
-  const pose = selectPose({ now: new Date(), config: cfg, lastActivityAt: st.lastActivityAt });
-  const stats = deriveStats(snap, st.lastActivityAt);
-  const { level, label: ageLabel } = levelInfo(cfg.bornAt, st.usageXp);
-  const repu = stats.find((s) => s.key === 'repu')?.value ?? 0;
-  const joie = stats.find((s) => s.key === 'bonheur')?.value ?? 0;
-
-  const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  const five = snap?.fiveHour ?? { utilization: 0, resetsAt: null };
-  const seven = snap?.sevenDay ?? { utilization: 0, resetsAt: null };
-
-  const pad = 28;
-  const rightX = 330;
-  const rightW = width - rightX - pad;
-  const title = pose.title.toUpperCase();
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <defs>
-    <filter id="mono" x="-25%" y="-25%" width="150%" height="150%">
-      <feMorphology in="SourceAlpha" operator="dilate" radius="3.5" result="d"/>
-      <feFlood flood-color="${INK}" result="w"/>
-      <feComposite in="w" in2="d" operator="in" result="o"/>
-      <feMerge><feMergeNode in="o"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-  </defs>
-  <rect width="${width}" height="${height}" fill="${PAPER}"/>
-
+function buildFull(d: PanelData): string {
+  const W = 800, H = 480, pad = 28, rx = 330, rw = W - rx - pad;
+  const title = d.pose.title.toUpperCase();
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <defs>${MONO_FILTER}</defs>
+  <rect width="${W}" height="${H}" fill="${PAPER}"/>
   <text x="${pad}" y="${pad + 26}" font-family="monospace" font-weight="bold" font-size="26" letter-spacing="4" fill="${INK}">CLAUDE CODE</text>
-  <text x="${width - pad}" y="${pad + 24}" text-anchor="end" font-family="monospace" font-size="18" fill="${INK}">${time}</text>
-  <rect x="${pad}" y="${pad + 40}" width="${width - 2 * pad}" height="3" fill="${INK}"/>
-
-  <svg x="${pad}" y="90" width="290" height="255" viewBox="0 0 240 210">${clawdSvg(pose, mono)}</svg>
+  <text x="${W - pad}" y="${pad + 24}" text-anchor="end" font-family="monospace" font-size="18" fill="${INK}">${d.time}</text>
+  <rect x="${pad}" y="${pad + 40}" width="${W - 2 * pad}" height="3" fill="${INK}"/>
+  <svg x="${pad}" y="90" width="290" height="255" viewBox="0 0 240 210">${clawdSvg(d.pose, d.mono)}</svg>
   <rect x="${pad + 20}" y="352" width="${title.length * 15 + 24}" height="30" fill="${INK}"/>
   <text x="${pad + 32}" y="373" font-family="monospace" font-weight="bold" font-size="16" letter-spacing="2" fill="${PAPER}">${title}</text>
-
-  ${barRow(rightX, 130, rightW, 'SESSION · 5 H', five.utilization, formatReset(five.resetsAt), cfg.epaperPalette)}
-  ${barRow(rightX, 250, rightW, 'SEMAINE · 7 J', seven.utilization, formatReset(seven.resetsAt), cfg.epaperPalette)}
-
-  <rect x="${pad}" y="${height - 70}" width="${width - 2 * pad}" height="3" fill="${INK}"/>
-  <text x="${pad}" y="${height - 38}" font-family="monospace" font-weight="bold" font-size="18" fill="${INK}">NIVEAU ${level} · ${ageLabel}</text>
-  <text x="${rightX}" y="${height - 38}" font-family="monospace" font-size="15" fill="${INK}">REPU</text>
-  ${meterCells(rightX + 55, height - 52, repu)}
-  <text x="${rightX + 200}" y="${height - 38}" font-family="monospace" font-size="15" fill="${INK}">JOIE</text>
-  ${meterCells(rightX + 250, height - 52, joie)}
+  ${barRowFull(rx, 130, rw, 'SESSION · 5 H', d.five, d.fiveReset, d.red)}
+  ${barRowFull(rx, 250, rw, 'SEMAINE · 7 J', d.seven, d.sevenReset, d.red)}
+  <rect x="${pad}" y="${H - 70}" width="${W - 2 * pad}" height="3" fill="${INK}"/>
+  <text x="${pad}" y="${H - 38}" font-family="monospace" font-weight="bold" font-size="18" fill="${INK}">NIVEAU ${d.level} · ${d.age}</text>
+  <text x="${rx}" y="${H - 38}" font-family="monospace" font-size="15" fill="${INK}">REPU</text>${meterCells(rx + 55, H - 52, d.repu)}
+  <text x="${rx + 200}" y="${H - 38}" font-family="monospace" font-size="15" fill="${INK}">JOIE</text>${meterCells(rx + 250, H - 52, d.joie)}
 </svg>`;
 }
 
-/** Rastérise le panneau courant en PNG. */
-export function renderEpaperPng(opts: RenderOpts = {}): Buffer {
+// --- Panneau compact (Waveshare 2.13", 250x122) ---
+
+function barRowCompact(x: number, y: number, w: number, label: string, v: number, reset: string, red: boolean): string {
+  const fill = red && v >= 90 ? RED : INK;
+  return `
+    <text x="${x}" y="${y}" font-family="monospace" font-size="12" fill="${INK}">${label}</text>
+    <text x="${x + w}" y="${y + 2}" text-anchor="end" font-family="monospace" font-weight="bold" font-size="20" fill="${INK}">${v}%</text>
+    <rect x="${x}" y="${y + 6}" width="${w}" height="12" fill="${PAPER}" stroke="${INK}" stroke-width="2"/>
+    <rect x="${x + 2}" y="${y + 8}" width="${(w - 4) * (v / 100)}" height="8" fill="${fill}"/>
+    <text x="${x}" y="${y + 30}" font-family="monospace" font-size="10" fill="${INK}">reset ${reset}</text>`;
+}
+
+function buildCompact(d: PanelData): string {
+  const W = 250, H = 122;
+  const rx = 84, rw = 160;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <defs>${MONO_FILTER}</defs>
+  <rect width="${W}" height="${H}" fill="${PAPER}"/>
+  <svg x="4" y="14" width="66" height="58" viewBox="0 0 240 210">${clawdSvg(d.pose, d.mono)}</svg>
+  <text x="6" y="112" font-family="monospace" font-weight="bold" font-size="11" fill="${INK}">Nv.${d.level} · ${d.age}</text>
+  <rect x="76" y="8" width="1.5" height="106" fill="${INK}"/>
+  ${barRowCompact(rx, 20, rw, '5 H', d.five, d.fiveReset, d.red)}
+  ${barRowCompact(rx, 68, rw, '7 J', d.seven, d.sevenReset, d.red)}
+</svg>`;
+}
+
+export interface RenderOpts {
+  layout?: 'compact' | 'full';
+  palette?: 'bw' | 'bwr';
+}
+
+export function buildEpaperSvg(opts: RenderOpts = {}): string {
+  const layout = opts.layout ?? loadConfig().epaperLayout;
+  const data = gatherData(opts.palette);
+  return layout === 'full' ? buildFull(data) : buildCompact(data);
+}
+
+/** Rastérise le panneau courant en PNG. `scale` agrandit (aperçu net). */
+export function renderEpaperPng(opts: RenderOpts & { scale?: number } = {}): Buffer {
   const svg = buildEpaperSvg(opts);
+  const layout = opts.layout ?? loadConfig().epaperLayout;
+  const baseW = layout === 'full' ? 800 : 250;
   const resvg = new Resvg(svg, {
     background: PAPER,
+    fitTo: { mode: 'width', value: Math.round(baseW * (opts.scale ?? 1)) },
     font: { loadSystemFonts: true, defaultFontFamily: 'monospace' },
   });
   return Buffer.from(resvg.render().asPng());

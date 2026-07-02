@@ -161,6 +161,31 @@ function panel(d) {
 </svg>`;
 }
 
+function barCompact(x, y, w, label, v, reset, red) {
+  const fill = red && v >= 90 ? RED : BLACK;
+  return `<text x="${x}" y="${y}" font-family="monospace" font-size="12" fill="${BLACK}">${label}</text>
+    <text x="${x + w}" y="${y + 2}" text-anchor="end" font-family="monospace" font-weight="bold" font-size="20" fill="${BLACK}">${v}%</text>
+    <rect x="${x}" y="${y + 6}" width="${w}" height="12" fill="${PAPER}" stroke="${BLACK}" stroke-width="2"/>
+    <rect x="${x + 2}" y="${y + 8}" width="${(w - 4) * (v / 100)}" height="8" fill="${fill}"/>
+    <text x="${x}" y="${y + 30}" font-family="monospace" font-size="10" fill="${BLACK}">reset ${reset}</text>`;
+}
+
+function compactPanel(d) {
+  const W = 250, H = 122, rx = 84, rw = 160;
+  const mono = d.palette === 'bw';
+  const body = mono ? PAPER : RED;
+  const clawd = `${d.overhead === 'zzz' ? overhead('zzz') : ''}<g${mono ? ' filter="url(#mono)"' : ''}>${bodyShapes(body)}${eyes(d.eyes)}</g>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <defs><filter id="mono" x="-25%" y="-25%" width="150%" height="150%"><feMorphology in="SourceAlpha" operator="dilate" radius="3.5" result="d"/><feFlood flood-color="${BLACK}" result="w"/><feComposite in="w" in2="d" operator="in" result="o"/><feMerge><feMergeNode in="o"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+  <rect width="${W}" height="${H}" fill="${PAPER}"/>
+  <svg x="4" y="14" width="66" height="58" viewBox="0 0 240 210">${clawd}</svg>
+  <text x="6" y="112" font-family="monospace" font-weight="bold" font-size="11" fill="${BLACK}">Nv.${d.level} · ${d.age}</text>
+  <rect x="76" y="8" width="1.5" height="106" fill="${BLACK}"/>
+  ${barCompact(rx, 20, rw, '5 H', d.five, d.fiveReset, !mono)}
+  ${barCompact(rx, 68, rw, '7 J', d.seven, d.sevenReset, !mono)}
+</svg>`;
+}
+
 /* ------------------------------ planche des poses ------------------------------ */
 
 const POSES = [
@@ -208,14 +233,20 @@ function png(svg, width) {
 
 mkdirSync('docs', { recursive: true });
 
+// Aperçus e-paper compacts (2.13", rendus en x3 pour la netteté du README).
 writeFileSync(
   'docs/epaper-color.png',
-  png(panel({ palette: 'bwr', title: 'Content', eyes: 'happy', time: '14:32', five: 47, fiveReset: '2h 45', seven: 63, sevenReset: '4j 2h', level: 3, age: '18 j', repu: 92, joie: 80 })),
+  png(compactPanel({ palette: 'bwr', eyes: 'happy', five: 47, fiveReset: '2h45', seven: 63, sevenReset: '4j 2h', level: 3, age: '18 j' }), 750),
 );
 writeFileSync(
   'docs/epaper-bw.png',
-  png(panel({ palette: 'bw', title: 'Dodo', eyes: 'sleep', overhead: 'zzz', time: '02:14', five: 8, fiveReset: '3h 10', seven: 22, sevenReset: '5j 6h', level: 3, age: '18 j', repu: 40, joie: 66 })),
+  png(compactPanel({ palette: 'bw', eyes: 'sleep', overhead: 'zzz', five: 8, fiveReset: '3h10', seven: 22, sevenReset: '5j 6h', level: 3, age: '18 j' }), 750),
+);
+// Rendu grand format (7.5") pour référence.
+writeFileSync(
+  'docs/epaper-full.png',
+  png(panel({ palette: 'bwr', title: 'Content', eyes: 'happy', time: '14:32', five: 47, fiveReset: '2h 45', seven: 63, sevenReset: '4j 2h', level: 3, age: '18 j', repu: 92, joie: 80 })),
 );
 writeFileSync('docs/mascot-poses.png', png(posesSheet(), 900));
 
-console.log('OK — docs/epaper-color.png, docs/epaper-bw.png, docs/mascot-poses.png');
+console.log('OK — docs/epaper-{color,bw,full}.png, docs/mascot-poses.png');

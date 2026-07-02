@@ -135,16 +135,29 @@ export function ConfigPanel({ onClose }: { onClose: () => void }) {
             </select>
           </div>
 
-          <div>
-            <label className="mb-1 block text-xs text-white/60">Palette e-paper</label>
-            <select
-              className={field}
-              value={cfg.epaperPalette}
-              onChange={(e) => patch({ epaperPalette: e.target.value as AppConfig['epaperPalette'] })}
-            >
-              <option value="bw">Noir &amp; blanc</option>
-              <option value="bwr">Noir / blanc / rouge</option>
-            </select>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="mb-1 block text-xs text-white/60">Palette e-paper</label>
+              <select
+                className={field}
+                value={cfg.epaperPalette}
+                onChange={(e) => patch({ epaperPalette: e.target.value as AppConfig['epaperPalette'] })}
+              >
+                <option value="bw">Noir &amp; blanc</option>
+                <option value="bwr">Noir / blanc / rouge</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-white/60">Mise en page</label>
+              <select
+                className={field}
+                value={cfg.epaperLayout}
+                onChange={(e) => patch({ epaperLayout: e.target.value as AppConfig['epaperLayout'] })}
+              >
+                <option value="compact">Compact 2.13"</option>
+                <option value="full">Grand 7.5"</option>
+              </select>
+            </div>
           </div>
 
           <div className="flex items-center gap-3 border-t border-white/10 pt-3">

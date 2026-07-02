@@ -15,6 +15,8 @@ export interface AppConfig {
   display: 'null' | 'epaper';
   /** Palette de l'e-paper: noir/blanc ou noir/blanc/rouge. */
   epaperPalette: 'bw' | 'bwr';
+  /** Mise en page e-paper: 'compact' (2.13" 250x122) ou 'full' (800x480). */
+  epaperLayout: 'compact' | 'full';
   /** Date d'anniversaire (YYYY-MM-DD ou MM-DD) pour la pose spéciale. */
   birthday: string;
   /** Minutes sans activité avant que Clawd s'endorme. */
@@ -37,6 +39,7 @@ const DEFAULTS: AppConfig = {
   thresholds: { alert: 50, worried: 75, panic: 90 },
   display: 'null',
   epaperPalette: 'bwr',
+  epaperLayout: 'compact',
   birthday: '',
   inactivityMinutes: 30,
   rotateMinutes: 30,
