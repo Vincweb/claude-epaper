@@ -13,7 +13,7 @@ RUN npm run build
 
 # --- Récupère la lib Waveshare officielle (module python waveshare_epd) ---
 FROM node:22-bookworm-slim AS waveshare
-RUN apt-get update && apt-get install -y --no-install-recommends git \
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 RUN git clone --depth 1 https://github.com/waveshareteam/e-Paper.git /tmp/epaper
 
@@ -23,7 +23,7 @@ WORKDIR /app
 
 # Node : polices pour resvg. Python : runtime + libs SPI/GPIO + deps Pillow.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      fonts-dejavu-core \
+      ca-certificates fonts-dejavu-core \
       python3 python3-pip python3-dev \
       gcc libjpeg62-turbo zlib1g \
   && rm -rf /var/lib/apt/lists/*
