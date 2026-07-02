@@ -106,14 +106,15 @@ Ouvre le dashboard, puis **⚙︎ Config → Importer les credentials**. Sans cr
 
 ## 🐳 Docker / CasaOS
 
-Le Pi Zero 2 W est lent à builder. On **construit les images ici** (Mac/CI) et on les pousse sur GHCR ; **le Pi ne fait plus que `pull`**.
+Le Pi Zero 2 W est lent à builder. On **construit les images ici** (Mac/CI) et on les pousse sur **Docker Hub** ; **le Pi ne fait plus que `pull`**.
 
-**1. Sur ta machine — build + push** (une fois connecté à GHCR) :
+**1. Sur ta machine — build + push** (il faut être connecté : `docker login`) :
 
 ```bash
-echo "$GHCR_TOKEN" | docker login ghcr.io -u Vincweb --password-stdin   # PAT scope write:packages
-GHCR_OWNER=vincweb ./scripts/build-and-push.sh                          # arm64, tag latest
+./scripts/build-and-push.sh                    # Docker Hub, arm64, tag latest
 ```
+
+> Pour utiliser GHCR à la place : `IMAGE_PREFIX=ghcr.io/vincweb ./scripts/build-and-push.sh`.
 
 Ça build **deux** images multi-arch et les pousse : `claude-epaper` (app) et `claude-epaper-push` (boucle e-paper).
 

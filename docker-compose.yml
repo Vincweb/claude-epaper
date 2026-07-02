@@ -1,14 +1,14 @@
 # Compose Raspberry Pi / CasaOS.
 #
-# Les images sont pré-construites ici (Mac/CI) et poussées sur GHCR :
-#   GHCR_OWNER=vincweb ./scripts/build-and-push.sh
+# Les images sont pré-construites ici (Mac/CI) et poussées sur Docker Hub :
+#   ./scripts/build-and-push.sh
 # Sur le Pi, plus rien à builder :
 #   docker compose pull && docker compose up -d
 #
-# Surcharge le namespace/tag via un fichier .env (GHCR_OWNER=..., TAG=...).
+# Surcharge le registry/tag via un fichier .env (IMAGE_PREFIX=..., TAG=...).
 services:
   claude-epaper:
-    image: ghcr.io/${GHCR_OWNER:-vincweb}/claude-epaper:${TAG:-latest}
+    image: ${IMAGE_PREFIX:-docker.io/vincweb}/claude-epaper:${TAG:-latest}
     container_name: claude-epaper
     ports:
       - "8787:8787"
@@ -27,7 +27,7 @@ services:
   # Ailleurs (NAS/CasaOS sans dalle), lance ce service avec le profil désactivé
   # ou supprime ce bloc.
   epaper-push:
-    image: ghcr.io/${GHCR_OWNER:-vincweb}/claude-epaper-push:${TAG:-latest}
+    image: ${IMAGE_PREFIX:-docker.io/vincweb}/claude-epaper-push:${TAG:-latest}
     container_name: epaper-push
     depends_on:
       - claude-epaper
