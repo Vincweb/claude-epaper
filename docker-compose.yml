@@ -1,0 +1,28 @@
+# Compose prêt pour CasaOS. Sur le Raspberry Pi, décommente la section
+# `devices` pour donner au conteneur l'accès à l'e-paper (SPI + GPIO).
+services:
+  claude-epaper:
+    build: .
+    image: claude-epaper:latest
+    container_name: claude-epaper
+    ports:
+      - "8787:8787"
+    environment:
+      - PORT=8787
+      - CONFIG_DIR=/data
+    volumes:
+      # Persistance config + credentials gérés par l'app.
+      - ./data:/data
+      # Import des credentials Claude Code depuis l'hôte (lecture seule).
+      # Adapte le chemin si Claude Code tourne ailleurs.
+      - ${HOME}/.claude:/root/.claude:ro
+    restart: unless-stopped
+    # --- e-paper sur Raspberry Pi : décommenter ---
+    # devices:
+    #   - /dev/spidev0.0:/dev/spidev0.0
+    #   - /dev/gpiomem:/dev/gpiomem
+    # group_add:
+    #   - spi
+    #   - gpio
+    # Alternative simple si les devices ne suffisent pas :
+    # privileged: true

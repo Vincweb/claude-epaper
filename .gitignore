@@ -1,0 +1,25 @@
+# Dépendances
+node_modules/
+
+# Build
+dist/
+web/dist/
+server/dist/
+
+# Données & secrets (jamais commitées)
+data/
+credentials.json
+claude_creds.json
+.env
+.env.*
+
+# Logs
+*.log
+
+# Outils / OS
+.claude/
+.DS_Store
+*.local
+
+# TS incremental
+*.tsbuildinfo

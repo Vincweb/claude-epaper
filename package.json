@@ -1,0 +1,20 @@
+{
+  "name": "claude-epaper",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Affiche les limites du compte Claude Code sur un e-paper (Raspberry Pi) + dashboard web",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,green \"npm:dev -w server\" \"npm:dev -w web\"",
+    "build": "npm run build -w web && npm run build -w server",
+    "start": "node server/dist/index.js",
+    "typecheck": "tsc -p server/tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.7.2"
+  }
+}
