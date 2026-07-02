@@ -37,7 +37,7 @@ ENV CONFIG_DIR=/data
 ENV PYTHONPATH=/app
 # Boucle e-paper : activée, lit le PNG en local. EPAPER_PUSH=0 pour la couper.
 ENV EPAPER_PUSH=1
-ENV RENDER_URL=http://localhost:8787/api/render.png
+ENV RENDER_URL=http://localhost:8787/api/render.png?palette=bw
 ENV EPD_MODEL=epd2in13_V4
 ENV POLL_SECONDS=30
 ENV FULL_REFRESH_EVERY=30

@@ -33,7 +33,11 @@ import time
 import requests
 from PIL import Image
 
-RENDER_URL = os.environ.get("RENDER_URL", "http://localhost:8787/api/render.png")
+# palette=bw : line-art noir & blanc (pas la version couleur du crabe qui
+# devient une bouillie une fois convertie en 1-bit).
+RENDER_URL = os.environ.get(
+    "RENDER_URL", "http://localhost:8787/api/render.png?palette=bw"
+)
 EPD_MODEL = os.environ.get("EPD_MODEL", "epd2in13_V4")
 POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "30"))
 FULL_REFRESH_EVERY = int(os.environ.get("FULL_REFRESH_EVERY", "30"))
@@ -51,12 +55,17 @@ def load_epd():
 
 
 def fetch_image(width, height):
-    """Récupère le PNG, le convertit en 1-bit à la taille de la dalle."""
+    """Récupère le PNG et le convertit en 1-bit (seuil net, sans tramage).
+
+    getbuffer() gère lui-même la rotation quand l'image est en (w,h) OU (h,w) :
+    on laisse donc le rendu paysage tel quel et on ne redimensionne qu'en
+    dernier recours (taille inattendue), sinon on écraserait le contenu.
+    """
     png = requests.get(RENDER_URL, timeout=10).content
     digest = hashlib.md5(png).digest()
-    img = Image.open(io.BytesIO(png)).convert("1")
-    if img.size != (width, height):
-        img = img.resize((width, height))
+    img = Image.open(io.BytesIO(png)).convert("1", dither=Image.NONE)
+    if img.size not in ((width, height), (height, width)):
+        img = img.resize((height, width))
     return img, digest
 
 
