@@ -161,13 +161,14 @@ function panel(d) {
 </svg>`;
 }
 
-function barCompact(x, y, w, label, v, reset, red) {
+function barCompact(x, y, w, label, v, reset, red, statLabel, statValue) {
   const fill = red && v >= 90 ? RED : BLACK;
   return `<text x="${x}" y="${y}" font-family="monospace" font-size="12" fill="${BLACK}">${label}</text>
     <text x="${x + w}" y="${y + 2}" text-anchor="end" font-family="monospace" font-weight="bold" font-size="20" fill="${BLACK}">${v}%</text>
     <rect x="${x}" y="${y + 6}" width="${w}" height="11" fill="${PAPER}" stroke="${BLACK}" stroke-width="2"/>
     <rect x="${x + 2}" y="${y + 8}" width="${(w - 4) * (v / 100)}" height="7" fill="${fill}"/>
-    <text x="${x}" y="${y + 28}" font-family="monospace" font-size="10" fill="${BLACK}">reset ${reset}</text>`;
+    <text x="${x}" y="${y + 29}" font-family="monospace" font-size="10" fill="${BLACK}">reset ${reset}</text>
+    ${statLine(x + 78, y + 23, statLabel, statValue)}`;
 }
 
 function cellsSmall(x, y, value, cells = 5, cw = 6, ch = 6, gap = 2) {
@@ -178,25 +179,24 @@ function cellsSmall(x, y, value, cells = 5, cw = 6, ch = 6, gap = 2) {
   return s;
 }
 function statLine(x, y, label, value) {
-  return `<text x="${x}" y="${y + 6}" font-family="monospace" font-size="8" fill="${BLACK}">${label}</text>${cellsSmall(x + 30, y, value)}`;
+  return `<text x="${x}" y="${y + 6}" font-family="monospace" font-size="8" fill="${BLACK}">${label}</text>${cellsSmall(x + 26, y, value)}`;
 }
 
 function compactPanel(d) {
-  const W = 250, H = 122, rx = 82, rw = 164;
+  const W = 250, H = 122, rx = 80, rw = 166;
   const mono = d.palette === 'bw';
   const body = mono ? PAPER : RED;
   const clawd = `${d.overhead === 'zzz' ? overhead('zzz') : ''}<g${mono ? ' filter="url(#mono)"' : ''}>${bodyShapes(body)}${eyes(d.eyes)}</g>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <defs><filter id="mono" x="-25%" y="-25%" width="150%" height="150%"><feMorphology in="SourceAlpha" operator="dilate" radius="3.5" result="d"/><feFlood flood-color="${BLACK}" result="w"/><feComposite in="w" in2="d" operator="in" result="o"/><feMerge><feMergeNode in="o"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
   <rect width="${W}" height="${H}" fill="${PAPER}"/>
-  <svg x="2" y="4" width="64" height="56" viewBox="0 0 240 210">${clawd}</svg>
-  <text x="4" y="74" font-family="monospace" font-weight="bold" font-size="10" fill="${BLACK}">Nv.${d.level} · ${d.age}</text>
-  ${statLine(4, 82, 'ENE', 100 - d.five)}
-  ${statLine(4, 96, 'REP', d.repu)}
-  ${statLine(4, 110, 'JOI', d.joie)}
-  <rect x="74" y="6" width="1.5" height="110" fill="${BLACK}"/>
-  ${barCompact(rx, 16, rw, '5 H', d.five, d.fiveReset, !mono)}
-  ${barCompact(rx, 62, rw, '7 J', d.seven, d.sevenReset, !mono)}
+  <svg x="2" y="2" width="62" height="54" viewBox="0 0 240 210">${clawd}</svg>
+  <text x="4" y="72" font-family="monospace" font-weight="bold" font-size="10" fill="${BLACK}">Nv.${d.level} · ${d.age}</text>
+  ${statLine(4, 80, 'REP', d.repu)}
+  ${statLine(4, 98, 'JOI', d.joie)}
+  <rect x="72" y="4" width="1.5" height="112" fill="${BLACK}"/>
+  ${barCompact(rx, 16, rw, '5 H', d.five, d.fiveReset, !mono, 'ENE', 100 - d.five)}
+  ${barCompact(rx, 62, rw, '7 J', d.seven, d.sevenReset, !mono, 'FOR', 100 - d.seven)}
 </svg>`;
 }
 

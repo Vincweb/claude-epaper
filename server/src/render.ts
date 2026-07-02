@@ -145,16 +145,6 @@ function buildFull(d: PanelData): string {
 
 // --- Panneau compact (Waveshare 2.13", 250x122) ---
 
-function barRowCompact(x: number, y: number, w: number, label: string, v: number, reset: string, red: boolean): string {
-  const fill = red && v >= 90 ? RED : INK;
-  return `
-    <text x="${x}" y="${y}" font-family="monospace" font-size="12" fill="${INK}">${label}</text>
-    <text x="${x + w}" y="${y + 2}" text-anchor="end" font-family="monospace" font-weight="bold" font-size="20" fill="${INK}">${v}%</text>
-    <rect x="${x}" y="${y + 6}" width="${w}" height="11" fill="${PAPER}" stroke="${INK}" stroke-width="2"/>
-    <rect x="${x + 2}" y="${y + 8}" width="${(w - 4) * (v / 100)}" height="7" fill="${fill}"/>
-    <text x="${x}" y="${y + 28}" font-family="monospace" font-size="10" fill="${INK}">reset ${reset}</text>`;
-}
-
 /** Mini jauge à cellules pour le format compact. */
 function meterCellsSmall(x: number, y: number, value: number, cells = 5, cw = 6, ch = 6, gap = 2): string {
   const filled = Math.round((value / 100) * cells);
@@ -165,23 +155,36 @@ function meterCellsSmall(x: number, y: number, value: number, cells = 5, cw = 6,
 }
 
 function statLineCompact(x: number, y: number, label: string, value: number): string {
-  return `<text x="${x}" y="${y + 6}" font-family="monospace" font-size="8" fill="${INK}">${label}</text>${meterCellsSmall(x + 30, y, value)}`;
+  return `<text x="${x}" y="${y + 6}" font-family="monospace" font-size="8" fill="${INK}">${label}</text>${meterCellsSmall(x + 26, y, value)}`;
+}
+
+function barRowCompact(
+  x: number, y: number, w: number, label: string, v: number, reset: string, red: boolean,
+  statLabel: string, statValue: number,
+): string {
+  const fill = red && v >= 90 ? RED : INK;
+  return `
+    <text x="${x}" y="${y}" font-family="monospace" font-size="12" fill="${INK}">${label}</text>
+    <text x="${x + w}" y="${y + 2}" text-anchor="end" font-family="monospace" font-weight="bold" font-size="20" fill="${INK}">${v}%</text>
+    <rect x="${x}" y="${y + 6}" width="${w}" height="11" fill="${PAPER}" stroke="${INK}" stroke-width="2"/>
+    <rect x="${x + 2}" y="${y + 8}" width="${(w - 4) * (v / 100)}" height="7" fill="${fill}"/>
+    <text x="${x}" y="${y + 29}" font-family="monospace" font-size="10" fill="${INK}">reset ${reset}</text>
+    ${statLineCompact(x + 78, y + 23, statLabel, statValue)}`;
 }
 
 function buildCompact(d: PanelData): string {
   const W = 250, H = 122;
-  const rx = 82, rw = 164;
+  const rx = 80, rw = 166;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <defs>${MONO_FILTER}</defs>
   <rect width="${W}" height="${H}" fill="${PAPER}"/>
-  <svg x="2" y="4" width="64" height="56" viewBox="0 0 240 210">${clawdSvg(d.pose, d.mono)}</svg>
-  <text x="4" y="74" font-family="monospace" font-weight="bold" font-size="10" fill="${INK}">Nv.${d.level} · ${d.age}</text>
-  ${statLineCompact(4, 82, 'ENE', 100 - d.five)}
-  ${statLineCompact(4, 96, 'REP', d.repu)}
-  ${statLineCompact(4, 110, 'JOI', d.joie)}
-  <rect x="74" y="6" width="1.5" height="110" fill="${INK}"/>
-  ${barRowCompact(rx, 16, rw, '5 H', d.five, d.fiveReset, d.red)}
-  ${barRowCompact(rx, 62, rw, '7 J', d.seven, d.sevenReset, d.red)}
+  <svg x="2" y="2" width="62" height="54" viewBox="0 0 240 210">${clawdSvg(d.pose, d.mono)}</svg>
+  <text x="4" y="72" font-family="monospace" font-weight="bold" font-size="10" fill="${INK}">Nv.${d.level} · ${d.age}</text>
+  ${statLineCompact(4, 80, 'REP', d.repu)}
+  ${statLineCompact(4, 98, 'JOI', d.joie)}
+  <rect x="72" y="4" width="1.5" height="112" fill="${INK}"/>
+  ${barRowCompact(rx, 16, rw, '5 H', d.five, d.fiveReset, d.red, 'ENE', 100 - d.five)}
+  ${barRowCompact(rx, 62, rw, '7 J', d.seven, d.sevenReset, d.red, 'FOR', 100 - d.seven)}
 </svg>`;
 }
 
