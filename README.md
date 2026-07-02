@@ -116,16 +116,33 @@ Le Pi Zero 2 W est lent à builder. On **construit l'image ici** (Mac/CI) et on 
 
 > Pour utiliser GHCR à la place : `IMAGE_PREFIX=ghcr.io/vincweb ./scripts/build-and-push.sh`.
 
-**2. Sur le Pi (ou CasaOS) — juste tirer et lancer** :
+**2a. Sur le Pi en ligne de commande** :
 
 ```bash
-docker compose -f docker-compose.casaos.yml pull
-docker compose -f docker-compose.casaos.yml up -d
+docker compose pull && docker compose up -d
 ```
 
-Le dashboard est sur le port **8787**. Le conteneur lance le serveur Node + la boucle e-paper.
+Pour l'e-paper, décommente `privileged` + `devices` dans le [docker-compose.yml](docker-compose.yml).
 
-> Machine sans dalle (NAS/dev) : mets `EPAPER_PUSH=0` pour ne lancer que l'app.
+**2b. Ou via l'interface CasaOS** (*App personnalisée → Installer manuellement*) :
+
+| Champ | Valeur |
+|---|---|
+| **Image Docker** | `vincweb/claude-epaper` — **Tag** `latest` |
+| **Titre** | Claude ePaper |
+| **URL de l'icône** | `https://github.com/Vincweb/claude-epaper/blob/main/docs/logo.png?raw=true` |
+| **Web UI** | `http://` · port `8787` · `/` |
+| **Ports** | `8787` (hôte) → `8787` (conteneur), TCP |
+| **Volumes** | `/DATA/AppData/claude-epaper` → `/data` |
+| | `/home/vincweb/.claude` → `/root/.claude` (**lecture seule**) |
+| **Variables d'env.** | `EPD_MODEL=epd2in13_V4`, `POLL_SECONDS=30`, `FULL_REFRESH_EVERY=30`, `FULL_REFRESH_SECONDS=3600` (option : `EPAPER_PUSH=0` si pas de dalle) |
+| **Périphériques** | `/dev/spidev0.0` → `/dev/spidev0.0` |
+| | `/dev/gpiochip0` → `/dev/gpiochip0` |
+| **Privilège** | active **le mode privilégié** (nécessaire pour le GPIO) |
+
+Le dashboard est ensuite sur le port **8787**. Le conteneur lance le serveur Node + la boucle e-paper.
+
+> Machine sans dalle (NAS/dev) : `EPAPER_PUSH=0` pour ne lancer que l'app (et ignore Périphériques / Privilège).
 
 ## 🖥️ Brancher l'e-paper
 
@@ -138,7 +155,7 @@ Le conteneur tire son propre PNG (`/api/render.png` en local) à cadence rapide 
 **Sur le Pi :**
 
 1. Active SPI : `sudo raspi-config` → *Interface* → *SPI*.
-2. Ajuste `EPD_MODEL` (et les cadences) dans le compose, puis relance. Le compose CasaOS passe déjà `/dev/spidev0.0`, `/dev/gpiochip0` et `privileged: true`.
+2. Le conteneur a besoin des périphériques `/dev/spidev0.0` + `/dev/gpiochip0` et du **mode privilégié** (voir l'étape 2 ci-dessus). Ajuste `EPD_MODEL` et les cadences via les variables d'environnement.
 
 Réglages (variables d'environnement du service) :
 
@@ -178,8 +195,7 @@ docs/     Visuels du README
 scripts/  gen-assets.mjs · epaper_push.py (boucle e-paper) · entrypoint.sh
           build-and-push.sh (Docker Hub) · epaper-push.service (systemd, natif)
 Dockerfile                         image unique (Node + Python + lib Waveshare)
-docker-compose.yml                 déploiement générique (1 service)
-docker-compose.casaos.yml          variante CasaOS / Raspberry Pi
+docker-compose.yml                 déploiement (1 service) — CLI ou CasaOS
 ```
 
 ## 🗺️ Roadmap
