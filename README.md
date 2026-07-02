@@ -106,7 +106,7 @@ Ouvre le dashboard, puis **⚙︎ Config → Importer les credentials**. Sans cr
 
 ## 🐳 Docker / CasaOS
 
-Le Pi Zero 2 W est lent à builder. On **construit les images ici** (Mac/CI) et on les pousse sur **Docker Hub** ; **le Pi ne fait plus que `pull`**.
+Le Pi Zero 2 W est lent à builder. On **construit l'image ici** (Mac/CI) et on la pousse sur **Docker Hub** ; **le Pi ne fait plus que `pull`**. Un **seul conteneur** embarque l'app Node **et** la boucle push e-paper (Python).
 
 **1. Sur ta machine — build + push** (il faut être connecté : `docker login`) :
 
@@ -116,22 +116,20 @@ Le Pi Zero 2 W est lent à builder. On **construit les images ici** (Mac/CI) et 
 
 > Pour utiliser GHCR à la place : `IMAGE_PREFIX=ghcr.io/vincweb ./scripts/build-and-push.sh`.
 
-Ça build **deux** images multi-arch et les pousse : `claude-epaper` (app) et `claude-epaper-push` (boucle e-paper).
-
 **2. Sur le Pi (ou CasaOS) — juste tirer et lancer** :
 
 ```bash
-docker compose pull
-docker compose up -d
+docker compose -f docker-compose.casaos.yml pull
+docker compose -f docker-compose.casaos.yml up -d
 ```
 
-Le dashboard est sur le port **8787**. Deux services tournent : l'**app** et la **boucle push e-paper** (voir ci-dessous).
+Le dashboard est sur le port **8787**. Le conteneur lance le serveur Node + la boucle e-paper.
 
-> Si tu n'as pas de dalle (NAS/CasaOS seul), lance uniquement l'app : `docker compose up -d claude-epaper`.
+> Machine sans dalle (NAS/dev) : mets `EPAPER_PUSH=0` pour ne lancer que l'app.
 
 ## 🖥️ Brancher l'e-paper
 
-Le service `epaper-push` du compose tire `/api/render.png` à cadence rapide mais **ne touche la dalle que si l'image a changé**. À la façon de [Bjorn](https://github.com/infinition/Bjorn) :
+Le conteneur tire son propre PNG (`/api/render.png` en local) à cadence rapide mais **ne touche la dalle que si l'image a changé**. À la façon de [Bjorn](https://github.com/infinition/Bjorn) :
 
 - **refresh partiel** à chaque changement (rapide, sans clignotement) sur les dalles monochromes qui le supportent ;
 - **refresh complet périodique** (tous les `FULL_REFRESH_EVERY` partiels ou toutes les `FULL_REFRESH_SECONDS`) pour effacer le ghosting ;
@@ -140,17 +138,18 @@ Le service `epaper-push` du compose tire `/api/render.png` à cadence rapide mai
 **Sur le Pi :**
 
 1. Active SPI : `sudo raspi-config` → *Interface* → *SPI*.
-2. Ajuste `EPD_MODEL` (et les cadences) dans le `docker-compose.yml`, puis `docker compose up -d`.
+2. Ajuste `EPD_MODEL` (et les cadences) dans le compose, puis relance. Le compose CasaOS passe déjà `/dev/spidev0.0`, `/dev/gpiochip0` et `privileged: true`.
 
-Le compose passe déjà `/dev/spidev0.0` et `/dev/gpiochip0` au conteneur. Réglages (env du service `epaper-push`) :
+Réglages (variables d'environnement du service) :
 
 | Variable | Défaut | Rôle |
 |---|---|---|
-| `RENDER_URL` | `http://claude-epaper:8787/api/render.png` | URL du PNG (nom de service compose) |
+| `EPAPER_PUSH` | `1` | `0` pour désactiver la boucle (machine sans dalle) |
 | `EPD_MODEL` | `epd2in13_V4` | module `waveshare_epd` de ta dalle |
 | `POLL_SECONDS` | `30` | intervalle de tirage |
 | `FULL_REFRESH_EVERY` | `30` | refresh complet tous les N partiels |
 | `FULL_REFRESH_SECONDS` | `3600` | refresh complet au moins toutes les X s |
+| `RENDER_URL` | `http://localhost:8787/api/render.png` | URL du PNG (local au conteneur) |
 
 ### Alternative : sans Docker (natif + systemd)
 
@@ -176,9 +175,11 @@ journalctl -u epaper-push.service -f        # logs (refresh partiel/complet)
 server/   API Node/TS : credentials + refresh + fetch usage + SSE + rendu PNG (resvg)
 web/      Dashboard React/TS + Tailwind (jauges, Clawd animé, stats, config, PWA)
 docs/     Visuels du README
-scripts/  gen-assets.mjs · epaper_push.py (boucle e-paper) · build-and-push.sh (GHCR)
-          epaper-push.Dockerfile · epaper-push.service (systemd)
-Dockerfile · docker-compose.yml   déploiement 2 services (app + push) CasaOS / Pi
+scripts/  gen-assets.mjs · epaper_push.py (boucle e-paper) · entrypoint.sh
+          build-and-push.sh (Docker Hub) · epaper-push.service (systemd, natif)
+Dockerfile                         image unique (Node + Python + lib Waveshare)
+docker-compose.yml                 déploiement générique (1 service)
+docker-compose.casaos.yml          variante CasaOS / Raspberry Pi
 ```
 
 ## 🗺️ Roadmap

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build les deux images pour l'architecture du Pi et les pousse sur un registry.
+# Build l'image (app + boucle e-paper) pour l'arch du Pi et la pousse sur un registry.
 #
 # Prérequis : être connecté au registry (`docker login` — déjà fait pour Docker Hub).
 #
@@ -18,7 +18,7 @@ TAG="${TAG:-latest}"
 PLATFORMS="${PLATFORMS:-linux/arm64}"
 REGISTRY="$IMAGE_PREFIX"
 
-echo "==> Build ${PLATFORMS} -> ${REGISTRY}/{claude-epaper,claude-epaper-push}:${TAG}"
+echo "==> Build ${PLATFORMS} -> ${REGISTRY}/claude-epaper:${TAG}"
 echo "    (registry courant : ${IMAGE_PREFIX})"
 
 # Builder buildx dédié (multi-arch), créé au besoin.
@@ -27,14 +27,9 @@ if ! docker buildx inspect claude-epaper >/dev/null 2>&1; then
 fi
 docker buildx use claude-epaper
 
-# App (serveur TS + web).
+# Image unique : app Node + boucle e-paper Python.
 docker buildx build --platform "$PLATFORMS" \
   -t "${REGISTRY}/claude-epaper:${TAG}" \
   -f Dockerfile --push .
-
-# Boucle push e-paper (Python).
-docker buildx build --platform "$PLATFORMS" \
-  -t "${REGISTRY}/claude-epaper-push:${TAG}" \
-  -f scripts/epaper-push.Dockerfile --push .
 
 echo "==> OK. Sur le Pi : docker compose pull && docker compose up -d"

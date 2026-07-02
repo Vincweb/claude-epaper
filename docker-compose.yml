@@ -1,6 +1,6 @@
-# Compose Raspberry Pi / CasaOS.
+# Un seul service : app Node + boucle push e-paper dans la même image.
 #
-# Les images sont pré-construites ici (Mac/CI) et poussées sur Docker Hub :
+# L'image est pré-construite ici (Mac/CI) et poussée sur Docker Hub :
 #   ./scripts/build-and-push.sh
 # Sur le Pi, plus rien à builder :
 #   docker compose pull && docker compose up -d
@@ -15,33 +15,20 @@ services:
     environment:
       - PORT=8787
       - CONFIG_DIR=/data
-    volumes:
-      # Persistance config + credentials gérés par l'app.
-      - ./data:/data
-      # Import des credentials Claude Code depuis l'hôte (lecture seule).
-      # Adapte le chemin si Claude Code tourne ailleurs.
-      - ${HOME}/.claude:/root/.claude:ro
-    restart: unless-stopped
-
-  # Boucle push e-paper — à activer UNIQUEMENT sur le Raspberry Pi (accès SPI/GPIO).
-  # Ailleurs (NAS/CasaOS sans dalle), lance ce service avec le profil désactivé
-  # ou supprime ce bloc.
-  epaper-push:
-    image: ${IMAGE_PREFIX:-docker.io/vincweb}/claude-epaper-push:${TAG:-latest}
-    container_name: epaper-push
-    depends_on:
-      - claude-epaper
-    environment:
-      - RENDER_URL=http://claude-epaper:8787/api/render.png
+      # Boucle e-paper. Mets EPAPER_PUSH=0 sur une machine sans dalle (NAS/dev).
+      - EPAPER_PUSH=1
       - EPD_MODEL=epd2in13_V4
       - POLL_SECONDS=30
       - FULL_REFRESH_EVERY=30
       - FULL_REFRESH_SECONDS=3600
-    devices:
-      - /dev/spidev0.0:/dev/spidev0.0
-      - /dev/gpiochip0:/dev/gpiochip0
-      # Anciens noyaux : décommenter à la place de gpiochip0.
-      # - /dev/gpiomem:/dev/gpiomem
-    # Si les devices ne suffisent pas (permissions GPIO), passe en privileged.
-    # privileged: true
+    volumes:
+      # Persistance config + credentials gérés par l'app.
+      - ./data:/data
+      # Import des credentials Claude Code depuis l'hôte (lecture seule).
+      - ${HOME}/.claude:/root/.claude:ro
     restart: unless-stopped
+    # --- e-paper sur Raspberry Pi : décommenter pour l'accès SPI/GPIO ---
+    # privileged: true
+    # devices:
+    #   - /dev/spidev0.0:/dev/spidev0.0
+    #   - /dev/gpiochip0:/dev/gpiochip0
