@@ -108,7 +108,7 @@ make run                # app :8787 + boucle e-paper si la dalle est branchée (
 | `make install` | installe **ce qui manque** : paquets apt, Node 22 (NodeSource), lib Waveshare (`~/e-Paper`), `npm install`, build |
 | `make run` | lance l'app ; si `/dev/spidev0.0` existe, lance aussi la boucle e-paper |
 | `make services` | installe + active les unités `systemd` (user & chemins auto-détectés) → **démarre au boot** |
-| `make update` | `git pull` + réinstalle/rebuild ce qui a changé + redémarre les services actifs |
+| `make update` | `git pull` + réinstalle/rebuild ce qui a changé + **re-synchronise les unités systemd** si elles sont installées (chemins/env à jour) |
 | `make dev` | hot-reload serveur + web (développement) |
 
 **Première connexion :** le dashboard te demande de créer une **passkey**

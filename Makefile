@@ -70,17 +70,19 @@ run: build ## Lance l'app :8787 (+ boucle e-paper si /dev/spidev0.0 présent)
 		PORT=$(PORT) NODE_ENV=production node server/dist/index.js; \
 	fi
 
-update: ## git pull + réinstalle/rebuild ce qui a changé (+ restart services)
+update: ## git pull + réinstalle/rebuild ce qui a changé (+ resync services)
 	@# Le lockfile est régénérable (npm) et suivi en amont : on jette toute
 	@# modif locale qui bloquerait le fast-forward.
 	@git checkout -- package-lock.json 2>/dev/null || true
 	git pull --ff-only
 	@$(MAKE) install
+	@# Si les services sont déjà installés, on re-synchronise les unités
+	@# (chemins/env peuvent avoir changé) au lieu d'un simple restart.
 	@if [ "$(UNAME)" = "Linux" ] && systemctl is-enabled claude-epaper.service >/dev/null 2>&1; then \
-		echo "→ redémarrage des services"; sudo systemctl restart claude-epaper epaper-push; \
+		echo "→ re-synchronisation des services systemd"; $(MAKE) services; \
 	fi
 
-services: build ## Installe + active les unités systemd (user/chemins adaptés)
+services: build ## Installe/actualise + active les unités systemd (user/chemins adaptés)
 	@if [ "$(UNAME)" != "Linux" ]; then echo "✗ systemd : sur le Pi uniquement"; exit 1; fi
 	@for u in claude-epaper epaper-push; do \
 		sed -e 's|^User=.*|User=$(USER)|' \
@@ -90,8 +92,9 @@ services: build ## Installe + active les unités systemd (user/chemins adaptés)
 		echo "✓ /etc/systemd/system/$$u.service (User=$(USER), $(CURDIR))"; \
 	done
 	sudo systemctl daemon-reload
-	sudo systemctl enable --now claude-epaper epaper-push
-	@echo "✅ au boot — logs : journalctl -u claude-epaper -f · journalctl -u epaper-push -f"
+	sudo systemctl enable claude-epaper epaper-push
+	sudo systemctl restart claude-epaper epaper-push
+	@echo "✅ services à jour & actifs — logs : journalctl -u claude-epaper -f · journalctl -u epaper-push -f"
 
 dev: node_modules ## Hot-reload serveur + web (développement, Mac/PC)
 	npm run dev
