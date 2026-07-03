@@ -92,3 +92,10 @@ export async function recoverWithCode(code: string): Promise<void> {
 export async function logout(): Promise<void> {
   await fetch('/api/auth/logout', { method: 'POST' });
 }
+
+/** Déclenche la mise à jour (git pull + build + redémarrage) côté serveur. */
+export async function systemUpdate(): Promise<{ started: boolean }> {
+  const r = await fetch('/api/system/update', { method: 'POST' });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? 'update-failed');
+  return r.json();
+}

@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
 import QRCode from 'qrcode';
 import { poller } from '../poller.js';
 import { loadConfig, saveConfig } from '../config.js';
@@ -167,4 +169,29 @@ apiRouter.post('/auth/import', requireAuth, (_req, res) => {
   const creds = importFromSource();
   void poller.tick();
   res.json({ imported: Boolean(creds) });
+});
+
+/**
+ * Lance `scripts/self-update.sh` en détaché (git pull + build + redémarrage via
+ * systemd). Nécessite l'install en service (make services). Répond aussitôt ;
+ * le serveur redémarrera de lui-même à la fin.
+ */
+apiRouter.post('/system/update', requireAuth, (_req, res) => {
+  try {
+    const script = path.join(process.cwd(), 'scripts', 'self-update.sh');
+    const child = spawn('sh', [script], {
+      cwd: process.cwd(),
+      detached: true,
+      stdio: 'ignore',
+      env: {
+        ...process.env,
+        PATH: `/usr/bin:/usr/local/bin:${path.dirname(process.execPath)}:${process.env.PATH ?? ''}`,
+        NODE_PID: String(process.pid),
+      },
+    });
+    child.unref();
+    res.json({ started: true });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
 });

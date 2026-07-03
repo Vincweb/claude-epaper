@@ -12,7 +12,6 @@ const DEFAULT_CONFIG: AppConfig = {
   pollIntervalMs: 60_000,
   credentialsPath: '',
   thresholds: { alert: 50, worried: 75, panic: 90 },
-  display: 'null',
   epaperPalette: 'bwr',
   epaperLayout: 'compact',
   epaperRotate: 0,

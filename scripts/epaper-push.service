@@ -18,8 +18,8 @@ Environment=FULL_REFRESH_EVERY=20
 Environment=FULL_REFRESH_SECONDS=1800
 #EnvironmentFile=/home/pi/claude-epaper/scripts/epaper-push.env
 ExecStart=/usr/bin/python3 /home/pi/claude-epaper/scripts/epaper_push.py
-Restart=on-failure
-RestartSec=5
+Restart=always
+RestartSec=3
 
 [Install]
 WantedBy=multi-user.target

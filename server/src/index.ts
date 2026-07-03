@@ -3,7 +3,6 @@ import cookieParser from 'cookie-parser';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { poller } from './poller.js';
-import { createDisplay } from './display.js';
 import { apiRouter } from './routes/api.js';
 import { loadConfig, saveConfig } from './config.js';
 
@@ -31,11 +30,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Répercute chaque changement de limite sur l'affichage physique.
-const display = createDisplay();
-poller.on('change', (snap) => {
-  void display.render(snap).catch((e) => console.error('[display]', e));
-});
 poller.start();
 
 app.listen(PORT, () => {

@@ -9,8 +9,6 @@ export interface AppConfig {
   credentialsPath: string;
   /** Seuils (en %) qui colorent les jauges. */
   thresholds: { alert: number; worried: number; panic: number };
-  /** Cible d'affichage physique: 'null' (aucun) ou 'epaper'. */
-  display: 'null' | 'epaper';
   /** Palette de l'e-paper: noir/blanc ou noir/blanc/rouge. */
   epaperPalette: 'bw' | 'bwr';
   /** Mise en page e-paper: 'compact' (2.13" 250x122) ou 'full' (800x480). */
@@ -36,7 +34,6 @@ const DEFAULTS: AppConfig = {
   pollIntervalMs: 60_000,
   credentialsPath: path.join(os.homedir(), '.claude', '.credentials.json'),
   thresholds: { alert: 50, worried: 75, panic: 90 },
-  display: 'null',
   epaperPalette: 'bwr',
   epaperLayout: 'compact',
   epaperRotate: 0,

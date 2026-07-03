@@ -35,7 +35,6 @@ export interface AppConfig {
   pollIntervalMs: number;
   credentialsPath: string;
   thresholds: { alert: number; worried: number; panic: number };
-  display: 'null' | 'epaper';
   /** Palette de l'e-paper: noir/blanc ou noir/blanc/rouge. */
   epaperPalette: 'bw' | 'bwr';
   /** Mise en page e-paper: 'compact' (2.13") ou 'full' (800x480). */
