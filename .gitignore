@@ -24,3 +24,6 @@ claude_creds.json
 
 # TS incremental
 *.tsbuildinfo
+
+# Makefile (marqueur de build)
+.make-build.stamp

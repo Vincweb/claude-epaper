@@ -174,45 +174,30 @@ Réglages (variables d'environnement du service) :
 
 ### Alternative : sans Docker (tout en natif sur le Pi)
 
-**1. Prérequis** (une fois) — Node 22, libs Python via apt (pas de souci PEP 668), lib Waveshare :
+Un **Makefile** fait tout, de façon **idempotente** (chaque cible vérifie et n'installe/rebuild que ce qui manque) :
 
 ```bash
-sudo raspi-config       # Interface → SPI → activer
-sudo apt update && sudo apt install -y git python3-pil python3-requests \
-  python3-spidev python3-gpiozero python3-lgpio python3-rpi-lgpio
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y nodejs
-git clone --depth 1 https://github.com/waveshareteam/e-Paper.git ~/e-Paper
-```
-
-**2. L'app** — un build à l'installation (et aux mises à jour), ensuite du Node pur :
-
-```bash
+sudo raspi-config       # Interface → SPI → activer (une fois)
 git clone https://github.com/Vincweb/claude-epaper.git && cd claude-epaper
-npm install && npm run build            # quelques minutes sur un Zero 2 W
-npm start                               # → http://<pi>:8787
+make install            # apt (libs e-paper), Node 22, lib Waveshare, npm install, build
+make run                # app :8787 + boucle e-paper si dalle branchée (Ctrl-C stoppe tout)
 ```
+
+| Cible | Rôle |
+|---|---|
+| `make install` | installe **ce qui manque** : paquets apt, Node 22 (NodeSource), lib Waveshare (`~/e-Paper`), `npm install`, build |
+| `make run` | lance l'app ; si `/dev/spidev0.0` existe, lance aussi la boucle e-paper |
+| `make services` | unités systemd **adaptées automatiquement** (user + chemins courants), `enable --now` → démarre au boot |
+| `make update` | `git pull` + réinstalle/rebuild ce qui a changé + restart des services s'ils sont actifs |
+| `make dev` | hot-reload serveur + web (développement, Mac/PC) |
+
+Sur macOS, `make install` saute les étapes matérielles (apt, Waveshare) — utile pour le dev.
 
 > Zero 2 W à court de RAM au build ? Builde sur ton Mac (`npm run build`), copie
 > `server/dist/` + `web/dist/` sur le Pi, puis `npm install --omit=dev -w server`
 > (n'installe qu'express + resvg, binaires ARM précompilés — zéro compilation).
 
-**3. La boucle e-paper** (autre terminal) :
-
-```bash
-PYTHONPATH=~/e-Paper/RaspberryPi_JetsonNano/python/lib \
-RENDER_URL='http://localhost:8787/api/render.png?palette=bw' \
-python3 scripts/epaper_push.py
-```
-
-**4. Démarrage au boot** — deux unités systemd fournies ([claude-epaper.service](scripts/claude-epaper.service), [epaper-push.service](scripts/epaper-push.service)) ; adapte `User` et les chemins :
-
-```bash
-sudo cp scripts/claude-epaper.service scripts/epaper-push.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now claude-epaper epaper-push
-journalctl -u claude-epaper -f          # logs app
-journalctl -u epaper-push -f            # logs dalle (refresh partiel/complet)
-```
+Logs après `make services` : `journalctl -u claude-epaper -f` (app) · `journalctl -u epaper-push -f` (dalle).
 
 ## 📁 Structure
 

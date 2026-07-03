@@ -1,0 +1,91 @@
+# Claude e-paper — installation & exploitation en natif (Pi ou Mac).
+#   make install    installe ce qui manque (idempotent)
+#   make run        lance l'app (+ boucle e-paper si dalle branchée)
+#   make update     git pull + réinstalle/rebuild ce qui a changé
+#   make services   unités systemd adaptées au user/chemins courants (boot)
+#   make dev        hot-reload (développement)
+SHELL := /bin/bash
+.DEFAULT_GOAL := help
+
+UNAME := $(shell uname -s)
+PORT ?= 8787
+NODE_MIN := 22
+WAVESHARE_DIR ?= $(HOME)/e-Paper
+EPD_LIB := $(WAVESHARE_DIR)/RaspberryPi_JetsonNano/python/lib
+APT_PKGS := git python3-pil python3-requests python3-spidev python3-gpiozero python3-lgpio python3-rpi-lgpio
+SRC := $(shell find server/src web/src server/fonts web/index.html -type f 2>/dev/null)
+
+.PHONY: help install update run dev services check-node system-deps waveshare build
+
+help: ## Affiche cette aide
+	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+
+install: check-node system-deps waveshare build ## Installe tout ce qui manque (idempotent)
+	@echo "✅ install OK — lance : make run (ou make services pour le boot)"
+
+check-node: ## Node >= 22 (installé via NodeSource sur le Pi)
+	@if command -v node >/dev/null 2>&1 && [ "$$(node -p 'parseInt(process.versions.node)')" -ge $(NODE_MIN) ]; then \
+		echo "✓ node $$(node -v)"; \
+	elif [ "$(UNAME)" = "Linux" ]; then \
+		echo "→ installation de Node $(NODE_MIN) (NodeSource)…"; \
+		curl -fsSL https://deb.nodesource.com/setup_$(NODE_MIN).x | sudo -E bash - && sudo apt-get install -y nodejs; \
+	else \
+		echo "✗ Node $(NODE_MIN)+ requis (macOS : brew install node)"; exit 1; \
+	fi
+
+system-deps: ## Paquets apt pour l'e-paper (Linux uniquement)
+	@if [ "$(UNAME)" != "Linux" ]; then echo "✓ (macOS) deps système e-paper ignorées"; exit 0; fi; \
+	missing=""; \
+	for p in $(APT_PKGS); do dpkg -s $$p >/dev/null 2>&1 || missing="$$missing $$p"; done; \
+	if [ -n "$$missing" ]; then echo "→ apt install$$missing"; sudo apt-get update && sudo apt-get install -y $$missing; \
+	else echo "✓ paquets apt OK"; fi
+
+waveshare: ## Lib Waveshare officielle (~/e-Paper, Linux uniquement)
+	@if [ "$(UNAME)" != "Linux" ]; then echo "✓ (macOS) lib Waveshare ignorée"; exit 0; fi; \
+	if [ -d "$(EPD_LIB)/waveshare_epd" ]; then echo "✓ lib Waveshare présente"; \
+	else git clone --depth 1 https://github.com/waveshareteam/e-Paper.git "$(WAVESHARE_DIR)"; fi
+
+node_modules: package.json package-lock.json server/package.json web/package.json
+	npm install
+	@touch node_modules
+
+.make-build.stamp: node_modules $(SRC)
+	npm run build
+	@touch $@
+
+build: .make-build.stamp ## Compile serveur + web (seulement si les sources ont changé)
+
+run: build ## Lance l'app :8787 (+ boucle e-paper si /dev/spidev0.0 présent)
+	@if [ "$(UNAME)" = "Linux" ] && [ -e /dev/spidev0.0 ]; then \
+		echo "→ app + boucle e-paper (Ctrl-C pour tout arrêter)"; \
+		trap 'kill 0' INT TERM; \
+		PORT=$(PORT) NODE_ENV=production node server/dist/index.js & \
+		sleep 3; \
+		PYTHONPATH="$(EPD_LIB)" RENDER_URL="http://localhost:$(PORT)/api/render.png?palette=bw" python3 scripts/epaper_push.py & \
+		wait; \
+	else \
+		PORT=$(PORT) NODE_ENV=production node server/dist/index.js; \
+	fi
+
+update: ## git pull + réinstalle/rebuild ce qui a changé (+ restart services)
+	git pull --ff-only
+	@$(MAKE) install
+	@if [ "$(UNAME)" = "Linux" ] && systemctl is-enabled claude-epaper.service >/dev/null 2>&1; then \
+		echo "→ redémarrage des services"; sudo systemctl restart claude-epaper epaper-push; \
+	fi
+
+services: build ## Installe + active les unités systemd (user/chemins adaptés)
+	@if [ "$(UNAME)" != "Linux" ]; then echo "✗ systemd : sur le Pi uniquement"; exit 1; fi
+	@for u in claude-epaper epaper-push; do \
+		sed -e 's|^User=.*|User=$(USER)|' \
+		    -e 's|/home/pi/claude-epaper|$(CURDIR)|g' \
+		    -e 's|/home/pi/e-Paper|$(WAVESHARE_DIR)|g' \
+		    scripts/$$u.service | sudo tee /etc/systemd/system/$$u.service >/dev/null; \
+		echo "✓ /etc/systemd/system/$$u.service (User=$(USER), $(CURDIR))"; \
+	done
+	sudo systemctl daemon-reload
+	sudo systemctl enable --now claude-epaper epaper-push
+	@echo "✅ au boot — logs : journalctl -u claude-epaper -f · journalctl -u epaper-push -f"
+
+dev: node_modules ## Hot-reload serveur + web (développement, Mac/PC)
+	npm run dev
