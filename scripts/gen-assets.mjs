@@ -126,7 +126,7 @@ function demoData(palette, extra = {}) {
     mono: palette === 'bw',
     red: palette === 'bwr',
     online: true,
-    pose: { title: 'Content', eyes: 'happy', overhead: 'none' },
+    pose: { key: 'working', title: 'Au travail', eyes: 'square', accessory: 'laptop' },
     time: '14:32',
     five: 47, fiveReset: '2h 45',
     seven: 63, sevenReset: '4j 2h',

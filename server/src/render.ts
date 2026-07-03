@@ -7,11 +7,21 @@ import { loadConfig } from './config.js';
 // des polices système. Chemin résolu depuis dist/ comme depuis src/.
 const FONT_DIR = fileURLToPath(new URL('../fonts/', import.meta.url));
 const FONT_FILES = [`${FONT_DIR}DejaVuSansMono.ttf`, `${FONT_DIR}DejaVuSansMono-Bold.ttf`];
-import { formatReset, type ClawdEyes, type Pose } from './mascot.js';
+import {
+  formatReset,
+  type ClawdAccessory,
+  type ClawdEyes,
+  type ClawdMouth,
+  type ClawdOverhead,
+  type Pose,
+} from './mascot.js';
 
 const INK = '#000000';
 const PAPER = '#ffffff';
 const RED = '#d81e28';
+const PURPLE = '#a273f0';
+const SPARKLE = '#9b7cf0';
+const STEEL = '#8a857c';
 
 // --- Sprite Clawd (mêmes coordonnées que le composant web, viewBox 0 0 240 210) ---
 
@@ -45,21 +55,103 @@ function eyesSvg(eyes: ClawdEyes): string {
   }
 }
 
+function mouthSvg(mouth?: ClawdMouth): string {
+  if (mouth === 'line') return `<rect x="104" y="98" width="32" height="4" rx="1" fill="${INK}"/>`;
+  if (mouth === 'open') return `<rect x="108" y="92" width="24" height="16" rx="4" fill="${INK}"/>`;
+  if (mouth === 'kiss') return `<ellipse cx="114" cy="100" rx="5" ry="4" fill="${INK}"/>`;
+  return '';
+}
+
+function sparkleSvg(cx: number, cy: number, color: string, len = 12): string {
+  let s = '';
+  for (let i = 0; i < 8; i++)
+    s += `<rect x="${cx - 2}" y="${cy - len}" width="4" height="${len}" rx="2" fill="${color}" transform="rotate(${i * 45} ${cx} ${cy})"/>`;
+  return `${s}<circle cx="${cx}" cy="${cy}" r="3" fill="${color}"/>`;
+}
+
+const HEART_GRID = ['.XX.XX.', 'XXXXXXX', 'XXXXXXX', '.XXXXX.', '..XXX..', '...X...'];
+function pixelHeartSvg(x: number, y: number, px: number, fill: string): string {
+  let s = '';
+  HEART_GRID.forEach((row, r) =>
+    row.split('').forEach((c, col) => {
+      if (c === 'X') s += `<rect x="${x + col * px}" y="${y + r * px}" width="${px}" height="${px}" fill="${fill}"/>`;
+    }),
+  );
+  return s;
+}
+
+/** Accessoires tenus/posés (miroir mono/couleur de ClaudeCharacter.tsx). */
+function accessorySvg(kind: ClawdAccessory | undefined, mono: boolean): string {
+  if (!kind || kind === 'none') return '';
+  const S = mono ? INK : 'none';
+  const sw = mono ? 2 : 0;
+  const surf = (c: string) => (mono ? PAPER : c);
+  switch (kind) {
+    case 'laptop':
+      return `<rect x="78" y="138" width="84" height="10" fill="${surf('#8f8a80')}" stroke="${S}" stroke-width="${sw}"/><rect x="86" y="104" width="68" height="36" fill="${surf('#c7c2b8')}" stroke="${S}" stroke-width="${sw}"/><rect x="90" y="108" width="60" height="28" fill="${mono ? PAPER : '#3f3d39'}" stroke="${S}" stroke-width="${sw}"/><rect x="94" y="113" width="26" height="3" fill="${mono ? INK : '#7fb96b'}"/><rect x="94" y="120" width="38" height="3" fill="${mono ? INK : '#cfc9bd'}"/><rect x="94" y="127" width="20" height="3" fill="${mono ? INK : '#cfc9bd'}"/>`;
+    case 'coffee':
+      return `<rect x="196" y="78" width="22" height="22" fill="${surf('#b7b1a6')}" stroke="${INK}" stroke-width="2"/><path d="M218 83 q10 1 10 8 q0 7 -10 8" fill="none" stroke="${INK}" stroke-width="3"/><path d="M201 74 q3 -5 0 -9 M209 74 q3 -5 0 -9" fill="none" stroke="${mono ? INK : '#cfc9bd'}" stroke-width="2" stroke-linecap="round"/>`;
+    case 'ball':
+      return `<circle cx="172" cy="156" r="18" fill="${PAPER}" stroke="${INK}" stroke-width="2"/><polygon points="172,147 180,153 177,163 167,163 164,153" fill="${INK}"/><path d="M158 150 l4 5 M186 150 l-4 5 M166 170 l3 -4 M178 170 l-3 -4" stroke="${INK}" stroke-width="2"/>`;
+    case 'wand': {
+      const pts: [number, number][] = [[222, 44], [230, 50], [214, 50], [226, 58], [218, 60], [234, 58], [228, 40], [236, 50], [210, 58]];
+      let s = `<rect x="196" y="60" width="7" height="40" rx="2" fill="${INK}" transform="rotate(38 199 80)"/>`;
+      pts.forEach(([x, y], i) => {
+        const fill = mono ? (i % 2 ? PAPER : INK) : i % 2 ? '#fff' : '#e0b34a';
+        s += `<rect x="${x}" y="${y}" width="6" height="6" fill="${fill}" stroke="${mono ? INK : 'none'}" stroke-width="${mono ? 1 : 0}"/>`;
+      });
+      return s;
+    }
+    case 'heart':
+      return pixelHeartSvg(200, 62, 5, mono ? INK : '#e0533c');
+    default:
+      return '';
+  }
+}
+
+/** Objets au-dessus de la tête (chapeau, soleil, parapluie, zzz…). */
+function overheadSvg(kind: ClawdOverhead | undefined, mono: boolean): string {
+  if (!kind || kind === 'none') return '';
+  const S = mono ? INK : 'none';
+  const sw = mono ? 2 : 0;
+  const surf = (c: string) => (mono ? PAPER : c);
+  if (kind === 'zzz')
+    return `<g fill="${INK}" font-family="monospace" font-weight="bold"><text x="158" y="54" font-size="14">z</text><text x="170" y="40" font-size="18">Z</text><text x="186" y="24" font-size="24">Z</text></g>`;
+  if (kind === 'sparkle-hat')
+    return `<rect x="92" y="22" width="56" height="18" fill="${surf(PURPLE)}" stroke="${S}" stroke-width="${sw}"/><rect x="104" y="6" width="32" height="16" fill="${surf(PURPLE)}" stroke="${S}" stroke-width="${sw}"/><rect x="118.5" y="-38" width="3" height="46" fill="${mono ? INK : STEEL}"/>${sparkleSvg(120, -44, mono ? INK : SPARKLE)}`;
+  if (kind === 'party')
+    return `<polygon points="120,4 102,44 138,44" fill="${surf('#e0b34a')}" stroke="${INK}" stroke-width="2"/><circle cx="120" cy="4" r="5" fill="${mono ? INK : '#e0533c'}"/><circle cx="114" cy="22" r="3" fill="${mono ? INK : '#fff'}"/><circle cx="125" cy="32" r="3" fill="${mono ? INK : '#e0533c'}"/>`;
+  if (kind === 'sun') {
+    const cx = 202, cy = 22, r = 15;
+    let s = '';
+    for (let i = 0; i < 8; i++)
+      s += `<rect x="${cx - 1.5}" y="${cy - r - 10}" width="3" height="8" rx="1.5" fill="${mono ? INK : '#f2c14e'}" transform="rotate(${i * 45} ${cx} ${cy})"/>`;
+    return `${s}<circle cx="${cx}" cy="${cy}" r="${r}" fill="${surf('#f2c14e')}" stroke="${S}" stroke-width="${sw}"/>`;
+  }
+  if (kind === 'umbrella') {
+    const cx = 120, cy = -6, r = 44;
+    return `<rect x="${cx - 1.5}" y="-6" width="3" height="50" fill="${mono ? INK : STEEL}"/><path d="M${cx - r} ${cy} A${r} ${r} 0 0 1 ${cx + r} ${cy} Z" fill="${surf('#4a86c8')}" stroke="${INK}" stroke-width="2"/><path d="M${cx} ${cy - r} L${cx - r} ${cy} M${cx} ${cy - r} L${cx} ${cy} M${cx} ${cy - r} L${cx + r} ${cy}" stroke="${mono ? INK : '#2f6aa0'}" stroke-width="2"/><g stroke="${mono ? INK : '#7cc4ff'}" stroke-width="3" stroke-linecap="round"><path d="M62 14 l0 8"/><path d="M178 20 l0 8"/><path d="M72 36 l0 8"/><path d="M172 6 l0 8"/></g>`;
+  }
+  return '';
+}
+
+const TALL_OVERHEAD = ['party', 'zzz', 'sparkle-hat', 'sun', 'umbrella'];
+/** viewBox élargie vers le haut quand un objet dépasse au-dessus de la tête. */
+export function clawdViewBox(pose: Pose): string {
+  return pose.overhead && TALL_OVERHEAD.includes(pose.overhead) ? '0 -60 240 270' : '0 0 240 210';
+}
+
 function clawdSvg(pose: Pose, mono: boolean): string {
   const body = mono ? PAPER : RED;
-  const zzz =
-    pose.overhead === 'zzz'
-      ? `<g fill="${INK}" font-family="monospace" font-weight="bold"><text x="158" y="54" font-size="14">z</text><text x="170" y="40" font-size="18">Z</text><text x="186" y="24" font-size="24">Z</text></g>`
-      : '';
   const bodyShapes = `
     <rect x="60" y="40" width="120" height="88" fill="${body}"/>
     <rect x="42" y="80" width="18" height="26" fill="${body}"/>
     <rect x="180" y="80" width="18" height="26" fill="${body}"/>
     <rect x="88" y="128" width="12" height="22" fill="${body}"/>
     <rect x="140" y="128" width="12" height="22" fill="${body}"/>
-    ${eyesSvg(pose.eyes)}`;
+    ${eyesSvg(pose.eyes)}${mouthSvg(pose.mouth)}${accessorySvg(pose.accessory, mono)}`;
   const filter = mono ? ' filter="url(#mono)"' : '';
-  return `${zzz}<g${filter}>${bodyShapes}</g>`;
+  return `<g${filter}>${overheadSvg(pose.overhead, mono)}${bodyShapes}</g>`;
 }
 
 // radius élevé : à la taille compacte (crabe ~62px) le contour resterait
@@ -148,7 +240,7 @@ export function buildFull(d: PanelData, rotate: 0 | 180): string {
   <text x="${W - pad}" y="${pad + 24}" text-anchor="end" font-family="monospace" font-size="18" fill="${INK}">${d.time}</text>
   <rect x="${pad}" y="${pad + 40}" width="${W - 2 * pad}" height="3" fill="${INK}"/>
   <text x="173" y="86" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="13" fill="${INK}">${d.online ? '● online' : '○ offline'}</text>
-  <svg x="${pad}" y="90" width="290" height="255" viewBox="0 0 240 210">${clawdSvg(d.pose, d.mono)}</svg>
+  <svg x="${pad}" y="90" width="290" height="255" viewBox="${clawdViewBox(d.pose)}">${clawdSvg(d.pose, d.mono)}</svg>
   <rect x="${pad + 20}" y="352" width="${title.length * 15 + 24}" height="30" fill="${INK}"/>
   <text x="${pad + 32}" y="373" font-family="monospace" font-weight="bold" font-size="16" letter-spacing="2" fill="${PAPER}">${title}</text>
   ${barRowFull(rx, 130, rw, 'SESSION · 5 H', d.five, d.fiveReset, d.red)}
@@ -190,7 +282,7 @@ export function buildCompact(d: PanelData, rotate: 0 | 180): string {
   const rx = 80, rw = 162;
   const inner = `
   <text x="37" y="14" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="9" fill="${INK}">${d.online ? '● online' : '○ offline'}</text>
-  <svg x="4" y="17" width="67" height="59" viewBox="0 0 240 210">${clawdSvg(d.pose, d.mono)}</svg>
+  <svg x="4" y="17" width="67" height="59" viewBox="${clawdViewBox(d.pose)}">${clawdSvg(d.pose, d.mono)}</svg>
   <text x="37" y="87" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="10" fill="${INK}">Nv.${d.level} · ${d.age}</text>
   ${statLineCompact(8, 93, 'REP', d.repu)}
   ${statLineCompact(8, 107, 'JOI', d.joie)}
