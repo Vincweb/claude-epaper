@@ -1,7 +1,7 @@
 {
   "name": "claude-epaper",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Affiche les limites du compte Claude Code sur un e-paper (Raspberry Pi) + dashboard web",
   "workspaces": [
     "server",

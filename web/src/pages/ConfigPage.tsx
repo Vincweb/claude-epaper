@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useAppData } from '../App';
-import { getConfig, importCredentials, putConfig, registerPasskey, systemUpdate } from '../api';
+import {
+  checkUpdate,
+  getConfig,
+  getVersion,
+  importCredentials,
+  putConfig,
+  registerPasskey,
+  systemUpdate,
+  type UpdateCheck,
+  type VersionInfo,
+} from '../api';
 import type { AppConfig } from '../lib/usage';
 
 const field = 'w-full rounded-lg bg-black/30 border border-white/10 px-3 py-2 text-sm';
@@ -25,12 +35,20 @@ export function ConfigPage() {
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [passkeyMsg, setPasskeyMsg] = useState<string | null>(null);
   const [updateMsg, setUpdateMsg] = useState<string | null>(null);
+  const [version, setVersion] = useState<VersionInfo | null>(null);
+  const [upd, setUpd] = useState<UpdateCheck | null>(null);
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
     getConfig().then((c) => {
       setSaved(c);
       setForm(c);
     });
+    getVersion().then(setVersion).catch(() => {});
+    checkUpdate()
+      .then(setUpd)
+      .catch(() => setUpd({ behind: 0, error: 'indisponible' }))
+      .finally(() => setChecking(false));
   }, []);
 
   const dirty = useMemo(
@@ -197,9 +215,42 @@ export function ConfigPage() {
           </div>
         </Section>
 
-        <Section title="Système" hint="Mise à jour depuis le dépôt Git (nécessite l'install en service).">
+        <Section title="Système" hint="Version et mise à jour depuis le dépôt Git.">
+          <div className="text-xs text-white/50">
+            Version {version?.version ?? '…'}
+            {version?.commit && (
+              <>
+                {' · '}
+                <code>{version.commit}</code>
+              </>
+            )}
+            {version?.date && <> · {new Date(version.date).toLocaleDateString('fr-FR')}</>}
+          </div>
+
+          {checking ? (
+            <div className="text-xs text-white/40">Vérification des mises à jour…</div>
+          ) : upd?.error ? (
+            <div className="text-xs text-white/40">Vérification impossible ({upd.error})</div>
+          ) : upd && upd.behind > 0 ? (
+            <div className="rounded-lg border border-[#d97757]/40 bg-[#d97757]/10 p-3 text-xs">
+              <div className="font-medium text-[#e0956f]">
+                ⬆ Mise à jour disponible — {upd.behind} commit{upd.behind > 1 ? 's' : ''} de retard
+              </div>
+              {upd.subject && <div className="mt-0.5 text-white/60">Dernier : {upd.subject}</div>}
+            </div>
+          ) : (
+            <div className="text-xs text-[#7bbf6a]">✓ À jour</div>
+          )}
+
           <div className="flex flex-wrap items-center gap-3">
-            <button onClick={doUpdate} className="rounded-lg bg-white/10 px-3 py-2 text-sm hover:bg-white/20">
+            <button
+              onClick={doUpdate}
+              className={`rounded-lg px-3 py-2 text-sm ${
+                upd && upd.behind > 0
+                  ? 'bg-[#d97757] font-medium text-black'
+                  : 'bg-white/10 hover:bg-white/20'
+              }`}
+            >
               ⟳ Mettre à jour l'app
             </button>
             {updateMsg && <span className="text-xs text-white/70">{updateMsg}</span>}

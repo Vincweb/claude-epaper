@@ -1,6 +1,9 @@
 import { Router } from 'express';
+import fs from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { spawn, execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import QRCode from 'qrcode';
 import { poller } from '../poller.js';
 import { loadConfig, saveConfig } from '../config.js';
@@ -20,6 +23,21 @@ import {
 } from '../auth.js';
 
 export const apiRouter = Router();
+
+// Racine du projet, résolue depuis ce module (indépendant du cwd : dev via le
+// workspace server/ comme prod via systemd). src/routes ou dist/routes → ../../..
+const PROJECT_ROOT = path.resolve(fileURLToPath(import.meta.url), '../../../..');
+
+const execFileAsync = promisify(execFile);
+/** Lance une commande git dans le repo (PATH élargi pour le contexte systemd). */
+async function git(args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync('git', args, {
+    cwd: PROJECT_ROOT,
+    timeout: 20_000,
+    env: { ...process.env, PATH: `/usr/bin:/usr/local/bin:${process.env.PATH ?? ''}` },
+  });
+  return stdout.trim();
+}
 
 /* ---------------------------------- auth ---------------------------------- */
 
@@ -171,6 +189,39 @@ apiRouter.post('/auth/import', requireAuth, (_req, res) => {
   res.json({ imported: Boolean(creds) });
 });
 
+/** Version courante : numéro (package.json) + commit git + date. */
+apiRouter.get('/system/version', requireAuth, async (_req, res) => {
+  let version = '0.0.0';
+  try {
+    version = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, 'package.json'), 'utf8')).version ?? version;
+  } catch {
+    /* ignore */
+  }
+  let commit = '';
+  let date = '';
+  try {
+    commit = await git(['rev-parse', '--short', 'HEAD']);
+    date = await git(['log', '-1', '--format=%cI']);
+  } catch {
+    /* pas un repo git / git absent */
+  }
+  res.json({ version, commit, date });
+});
+
+/** Vérifie s'il y a des commits en amont (git fetch + comparaison origin/main). */
+apiRouter.get('/system/update-check', requireAuth, async (_req, res) => {
+  try {
+    await git(['fetch', '--quiet', 'origin', 'main']);
+    const behind = Number(await git(['rev-list', '--count', 'HEAD..origin/main']));
+    const current = await git(['rev-parse', '--short', 'HEAD']);
+    const latest = await git(['rev-parse', '--short', 'origin/main']);
+    const subject = behind > 0 ? await git(['log', '-1', '--format=%s', 'origin/main']) : '';
+    res.json({ behind, current, latest, subject });
+  } catch (e) {
+    res.json({ behind: 0, error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
 /**
  * Lance `scripts/self-update.sh` en détaché (git pull + build + redémarrage via
  * systemd). Nécessite l'install en service (make services). Répond aussitôt ;
@@ -178,9 +229,9 @@ apiRouter.post('/auth/import', requireAuth, (_req, res) => {
  */
 apiRouter.post('/system/update', requireAuth, (_req, res) => {
   try {
-    const script = path.join(process.cwd(), 'scripts', 'self-update.sh');
+    const script = path.join(PROJECT_ROOT, 'scripts', 'self-update.sh');
     const child = spawn('sh', [script], {
-      cwd: process.cwd(),
+      cwd: PROJECT_ROOT,
       detached: true,
       stdio: 'ignore',
       env: {

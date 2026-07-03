@@ -93,6 +93,26 @@ export async function logout(): Promise<void> {
   await fetch('/api/auth/logout', { method: 'POST' });
 }
 
+export interface VersionInfo {
+  version: string;
+  commit: string;
+  date: string;
+}
+export async function getVersion(): Promise<VersionInfo> {
+  return (await fetch('/api/system/version')).json();
+}
+
+export interface UpdateCheck {
+  behind: number;
+  current?: string;
+  latest?: string;
+  subject?: string;
+  error?: string;
+}
+export async function checkUpdate(): Promise<UpdateCheck> {
+  return (await fetch('/api/system/update-check')).json();
+}
+
 /** Déclenche la mise à jour (git pull + build + redémarrage) côté serveur. */
 export async function systemUpdate(): Promise<{ started: boolean }> {
   const r = await fetch('/api/system/update', { method: 'POST' });
