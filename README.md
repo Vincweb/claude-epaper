@@ -143,7 +143,7 @@ Réglages (variables d'environnement, dans [`epaper-push.service`](scripts/epape
 | Variable | Défaut | Rôle |
 |---|---|---|
 | `EPD_MODEL` | `epd2in13_V4` | module `waveshare_epd` de ta dalle |
-| `POLL_SECONDS` | `30` | intervalle de tirage |
+| `POLL_SECONDS` | `5` | intervalle de vérification (n'écrit que si l'image a changé) |
 | `FULL_REFRESH_EVERY` | `20` | refresh complet tous les N partiels (anti-ghosting) |
 | `FULL_REFRESH_SECONDS` | `1800` | refresh complet au moins toutes les X s |
 | `EPAPER_THRESHOLD` | `160` | seuil de binarisation 0-255 (sous le seuil → noir) |

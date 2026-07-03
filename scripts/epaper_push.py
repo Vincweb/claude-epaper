@@ -13,11 +13,13 @@ Les dalles 3 couleurs (noir/blanc/rouge) ne gèrent pas le partiel : on retombe
 automatiquement sur le refresh complet.
 
 Config via variables d'environnement (toutes optionnelles) :
-  RENDER_URL            URL du PNG            (def. http://localhost:8787/api/render.png)
+  RENDER_URL            URL du PNG            (def. http://localhost:8787/api/render.png?palette=bw)
   EPD_MODEL             module waveshare_epd  (def. epd2in13_V4)
-  POLL_SECONDS          intervalle de tirage  (def. 30)
-  FULL_REFRESH_EVERY    refresh complet tous les N partiels  (def. 30)
-  FULL_REFRESH_SECONDS  refresh complet au moins tous les X s (def. 3600)
+  POLL_SECONDS          intervalle de tirage  (def. 5)
+  FULL_REFRESH_EVERY    refresh complet tous les N partiels  (def. 20)
+  FULL_REFRESH_SECONDS  refresh complet au moins tous les X s (def. 1800)
+  EPAPER_THRESHOLD      seuil de binarisation 0-255          (def. 160)
+  REQUEST_TIMEOUT       timeout du fetch en s                (def. 20)
 
 Lancement typique (sur le Pi, accès SPI/GPIO) :
   RENDER_URL=http://nas:8787/api/render.png python3 epaper_push.py
@@ -39,7 +41,7 @@ RENDER_URL = os.environ.get(
     "RENDER_URL", "http://localhost:8787/api/render.png?palette=bw"
 )
 EPD_MODEL = os.environ.get("EPD_MODEL", "epd2in13_V4")
-POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "30"))
+POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "5"))
 FULL_REFRESH_EVERY = int(os.environ.get("FULL_REFRESH_EVERY", "20"))
 FULL_REFRESH_SECONDS = int(os.environ.get("FULL_REFRESH_SECONDS", "1800"))
 # Le 1er rendu peut être lent au démarrage (Pi Zero) → timeout large.

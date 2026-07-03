@@ -13,7 +13,7 @@ Environment=PYTHONPATH=/home/pi/e-Paper/RaspberryPi_JetsonNano/python/lib
 # Variables : soit ici en clair, soit via EnvironmentFile (décommenter).
 Environment=RENDER_URL=http://localhost:8787/api/render.png?palette=bw
 Environment=EPD_MODEL=epd2in13_V4
-Environment=POLL_SECONDS=30
+Environment=POLL_SECONDS=5
 Environment=FULL_REFRESH_EVERY=20
 Environment=FULL_REFRESH_SECONDS=1800
 #EnvironmentFile=/home/pi/claude-epaper/scripts/epaper-push.env
