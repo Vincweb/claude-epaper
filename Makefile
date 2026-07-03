@@ -45,8 +45,11 @@ waveshare: ## Lib Waveshare officielle (~/e-Paper, Linux uniquement)
 	if [ -d "$(EPD_LIB)/waveshare_epd" ]; then echo "✓ lib Waveshare présente"; \
 	else git clone --depth 1 https://github.com/waveshareteam/e-Paper.git "$(WAVESHARE_DIR)"; fi
 
+# npm ci = installation déterministe depuis le lockfile, SANS jamais le
+# réécrire (contrairement à npm install) → pas de churn qui bloque `git pull`
+# sur le Pi. Fallback sur npm install si le lockfile est désynchronisé.
 node_modules: package.json package-lock.json server/package.json web/package.json
-	npm install
+	npm ci || npm install
 	@touch node_modules
 
 .make-build.stamp: node_modules $(SRC)
@@ -68,6 +71,9 @@ run: build ## Lance l'app :8787 (+ boucle e-paper si /dev/spidev0.0 présent)
 	fi
 
 update: ## git pull + réinstalle/rebuild ce qui a changé (+ restart services)
+	@# Le lockfile est régénérable (npm) et suivi en amont : on jette toute
+	@# modif locale qui bloquerait le fast-forward.
+	@git checkout -- package-lock.json 2>/dev/null || true
 	git pull --ff-only
 	@$(MAKE) install
 	@if [ "$(UNAME)" = "Linux" ] && systemctl is-enabled claude-epaper.service >/dev/null 2>&1; then \
