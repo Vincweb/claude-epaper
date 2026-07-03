@@ -172,22 +172,46 @@ Réglages (variables d'environnement du service) :
 
 > Le rendu serveur est généré **sans anti-aliasing** (chaque pixel est décidé) : ce que montre l'onglet **e-paper** du dashboard est exactement ce que la dalle reçoit. Dalle montée à l'envers ? Coche **Rotation 180°** dans ⚙︎ Config.
 
-### Alternative : sans Docker (natif + systemd)
+### Alternative : sans Docker (tout en natif sur le Pi)
 
-Si tu préfères lancer la boucle directement sur l'hôte (l'app pouvant tourner ailleurs) :
+**1. Prérequis** (une fois) — Node 22, libs Python via apt (pas de souci PEP 668), lib Waveshare :
 
 ```bash
-pip install requests pillow                 # + la lib Waveshare (waveshare_epd)
-RENDER_URL=http://<hote>:8787/api/render.png python3 scripts/epaper_push.py
+sudo raspi-config       # Interface → SPI → activer
+sudo apt update && sudo apt install -y git python3-pil python3-requests \
+  python3-spidev python3-gpiozero python3-lgpio python3-rpi-lgpio
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y nodejs
+git clone --depth 1 https://github.com/waveshareteam/e-Paper.git ~/e-Paper
 ```
 
-Pour un démarrage au boot, installe le service fourni ([scripts/epaper-push.service](scripts/epaper-push.service)) — adapte `User`, chemins et variables :
+**2. L'app** — un build à l'installation (et aux mises à jour), ensuite du Node pur :
 
 ```bash
-sudo cp scripts/epaper-push.service /etc/systemd/system/
+git clone https://github.com/Vincweb/claude-epaper.git && cd claude-epaper
+npm install && npm run build            # quelques minutes sur un Zero 2 W
+npm start                               # → http://<pi>:8787
+```
+
+> Zero 2 W à court de RAM au build ? Builde sur ton Mac (`npm run build`), copie
+> `server/dist/` + `web/dist/` sur le Pi, puis `npm install --omit=dev -w server`
+> (n'installe qu'express + resvg, binaires ARM précompilés — zéro compilation).
+
+**3. La boucle e-paper** (autre terminal) :
+
+```bash
+PYTHONPATH=~/e-Paper/RaspberryPi_JetsonNano/python/lib \
+RENDER_URL='http://localhost:8787/api/render.png?palette=bw' \
+python3 scripts/epaper_push.py
+```
+
+**4. Démarrage au boot** — deux unités systemd fournies ([claude-epaper.service](scripts/claude-epaper.service), [epaper-push.service](scripts/epaper-push.service)) ; adapte `User` et les chemins :
+
+```bash
+sudo cp scripts/claude-epaper.service scripts/epaper-push.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now epaper-push.service
-journalctl -u epaper-push.service -f        # logs (refresh partiel/complet)
+sudo systemctl enable --now claude-epaper epaper-push
+journalctl -u claude-epaper -f          # logs app
+journalctl -u epaper-push -f            # logs dalle (refresh partiel/complet)
 ```
 
 ## 📁 Structure

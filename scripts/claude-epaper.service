@@ -1,0 +1,18 @@
+[Unit]
+Description=Claude e-paper — app web + API (Node)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Adapte User et les chemins à ton installation.
+User=pi
+WorkingDirectory=/home/pi/claude-epaper
+Environment=NODE_ENV=production
+Environment=PORT=8787
+ExecStart=/usr/bin/node server/dist/index.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
