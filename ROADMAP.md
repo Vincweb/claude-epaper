@@ -12,15 +12,15 @@
 - Poses supplémentaires : bisou + cœur, lunettes + soleil, parapluie.
 - Deux versions distinctes par pose : **couleur** et **noir & blanc** (line-art).
 - Stats **Tamagotchi** (Énergie, Forme, Repu, Bonheur) + **niveau** (temps + usage).
-- **Rendu PNG serveur** (resvg) : palettes N&B et N/B/rouge, `GET /api/render.png`.
+- **Rendu PNG serveur** (resvg, sans anti-aliasing) : palettes N&B et N/B/rouge, `GET /api/render.png`.
+- **Layout compact 2.13"** (250×122) + rotation 180° réglable.
+- **Auth passkey** (WebAuthn) + code de récupération (QR).
+- **Installation native packagée** : `Makefile` (install/run/update/services) + unités `systemd` + boucle Python `epaper_push.py` (refresh partiel type Bjorn, anti-ghosting).
 - PWA : manifest + icônes.
-- Docker multi-stage + `docker-compose` prêt pour CasaOS.
 
 ## 🎯 Priorités
 
-- [ ] **Layout compact 2.13"** (250×122) pour la dalle Waveshare visée — mise en page dédiée petite résolution (le rendu actuel vise 800×480).
 - [ ] **Robustesse du token OAuth** — la rotation du refresh token (quand Claude Code tourne en parallèle) invalide la copie stockée ; lire le token « vivant » à la demande plutôt que garder une copie, et gérer proprement l'expiration/ré-import.
-- [ ] **Script Pi packagé** — service `systemd` + client Python qui tire `/api/render.png` et pilote le HAT, prêt à l'emploi.
 
 ## 💡 Idées / envies
 
