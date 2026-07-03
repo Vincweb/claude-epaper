@@ -106,6 +106,8 @@ export interface UpdateCheck {
   behind: number;
   current?: string;
   latest?: string;
+  /** Version (package.json) telle qu'elle est sur le dépôt distant. */
+  latestVersion?: string;
   subject?: string;
   error?: string;
 }

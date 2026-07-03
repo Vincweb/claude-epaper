@@ -215,8 +215,15 @@ apiRouter.get('/system/update-check', requireAuth, async (_req, res) => {
     const behind = Number(await git(['rev-list', '--count', 'HEAD..origin/main']));
     const current = await git(['rev-parse', '--short', 'HEAD']);
     const latest = await git(['rev-parse', '--short', 'origin/main']);
+    // Version telle qu'elle est SUR le dépôt distant (pas la copie locale).
+    let latestVersion = '';
+    try {
+      latestVersion = JSON.parse(await git(['show', 'origin/main:package.json'])).version ?? '';
+    } catch {
+      /* ignore */
+    }
     const subject = behind > 0 ? await git(['log', '-1', '--format=%s', 'origin/main']) : '';
-    res.json({ behind, current, latest, subject });
+    res.json({ behind, current, latest, latestVersion, subject });
   } catch (e) {
     res.json({ behind: 0, error: e instanceof Error ? e.message : String(e) });
   }

@@ -234,7 +234,8 @@ export function ConfigPage() {
           ) : upd && upd.behind > 0 ? (
             <div className="rounded-lg border border-[#d97757]/40 bg-[#d97757]/10 p-3 text-xs">
               <div className="font-medium text-[#e0956f]">
-                ⬆ Mise à jour disponible — {upd.behind} commit{upd.behind > 1 ? 's' : ''} de retard
+                ⬆ Mise à jour disponible{upd.latestVersion ? ` — v${upd.latestVersion}` : ''} (
+                {upd.behind} commit{upd.behind > 1 ? 's' : ''} de retard)
               </div>
               {upd.subject && <div className="mt-0.5 text-white/60">Dernier : {upd.subject}</div>}
             </div>
