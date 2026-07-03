@@ -7,16 +7,19 @@ type Layout = AppConfig['epaperLayout'];
 interface Props {
   palette: Palette;
   layout: Layout;
-  rotate: 0 | 180;
+  /** Rotation configurée pour la dalle physique (l'aperçu reste à l'endroit). */
+  configRotate: 0 | 180;
+  online: boolean;
   /** Change à chaque fetch usage réussi → recharge l'image. */
   version: string;
 }
 
 /**
  * Aperçu FIDÈLE : affiche le PNG exact généré par le serveur (celui envoyé à
- * la dalle), upscalé en nearest-neighbor. Ce que tu vois = ce que l'e-ink reçoit.
+ * la dalle), upscalé en nearest-neighbor — MAIS toujours à l'endroit : la
+ * rotation configurée ne s'applique qu'à la dalle physique, pas à l'aperçu.
  */
-export function EpaperView({ palette, layout, rotate, version }: Props) {
+export function EpaperView({ palette, layout, configRotate, online, version }: Props) {
   const [pal, setPal] = useState<Palette>(palette);
   const [lay, setLay] = useState<Layout>(layout);
   const [tick, setTick] = useState(0);
@@ -25,13 +28,13 @@ export function EpaperView({ palette, layout, rotate, version }: Props) {
   useEffect(() => setPal(palette), [palette]);
   useEffect(() => setLay(layout), [layout]);
 
-  // Filet de sécurité : la pose de Clawd tourne aussi sans variation d'usage.
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 30_000);
     return () => clearInterval(id);
   }, []);
 
-  const src = `/api/render.png?layout=${lay}&palette=${pal}${rotate === 180 ? '&rotate=180' : ''}&v=${encodeURIComponent(version)}-${tick}`;
+  // rotate=0 explicite : l'aperçu ne suit jamais la rotation de la dalle.
+  const src = `/api/render.png?layout=${lay}&palette=${pal}&rotate=0&v=${encodeURIComponent(version)}-${tick}`;
   useEffect(() => setError(false), [src]);
 
   const compact = lay === 'compact';
@@ -40,6 +43,14 @@ export function EpaperView({ palette, layout, rotate, version }: Props) {
 
   return (
     <div className="flex flex-col items-center gap-3">
+      <div className="flex items-center gap-2 text-xs">
+        <span
+          className="h-2.5 w-2.5 rounded-full blink-10"
+          style={{ background: online ? '#4ade80' : '#e0533c' }}
+        />
+        <span className="text-white/60">{online ? 'online' : 'offline'}</span>
+      </div>
+
       {/* Bezel du boîtier physique. */}
       <div className="rounded-2xl bg-[#22201d] p-4 shadow-2xl">
         {error ? (
@@ -69,7 +80,7 @@ export function EpaperView({ palette, layout, rotate, version }: Props) {
         <span>
           Rendu réel {nativeW}×{nativeH}
           {compact ? ' (2,13″)' : ' (7,5″)'}
-          {rotate === 180 ? ' · rotation 180°' : ''}
+          {configRotate === 180 ? ' · dalle tournée 180°' : ''}
         </span>
         <div className="flex overflow-hidden rounded-lg bg-white/10">
           {(['bw', 'bwr'] as const).map((p) => (

@@ -7,8 +7,6 @@ export interface AppConfig {
   pollIntervalMs: number;
   /** Fichier source des credentials Claude Code à importer. */
   credentialsPath: string;
-  /** Sur macOS, tenter de lire les credentials depuis le Keychain. */
-  useMacKeychain: boolean;
   /** Seuils (en %) qui colorent les jauges. */
   thresholds: { alert: number; worried: number; panic: number };
   /** Cible d'affichage physique: 'null' (aucun) ou 'epaper'. */
@@ -37,7 +35,6 @@ const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 const DEFAULTS: AppConfig = {
   pollIntervalMs: 60_000,
   credentialsPath: path.join(os.homedir(), '.claude', '.credentials.json'),
-  useMacKeychain: process.platform === 'darwin',
   thresholds: { alert: 50, worried: 75, panic: 90 },
   display: 'null',
   epaperPalette: 'bwr',

@@ -19,12 +19,21 @@ export interface PollerState {
   lastActivityAt: string | null;
   /** XP cumulée depuis la conso. */
   usageXp: number;
+  /** Pose courante (source de vérité serveur, identique à l'e-paper). */
+  pose: Pose;
+  /** Stats Tamagotchi calculées côté serveur. */
+  stats: Stat[];
+  /** Niveau de Clawd. */
+  level: number;
+  /** Âge lisible ("18 j"). */
+  ageLabel: string;
+  /** Pose forcée manuellement (bouton shuffle) ? */
+  poseManual: boolean;
 }
 
 export interface AppConfig {
   pollIntervalMs: number;
   credentialsPath: string;
-  useMacKeychain: boolean;
   thresholds: { alert: number; worried: number; panic: number };
   display: 'null' | 'epaper';
   /** Palette de l'e-paper: noir/blanc ou noir/blanc/rouge. */
@@ -128,6 +137,13 @@ export function deriveStats(opts: {
     { key: 'bonheur', label: 'Bonheur', icon: '😊', value: bonheur },
   ];
 }
+
+export const STAT_ICONS: Record<string, string> = {
+  energie: '⚡',
+  forme: '💪',
+  repu: '🍔',
+  bonheur: '😊',
+};
 
 export function statColor(value: number): string {
   if (value >= 50) return '#7bbf6a';

@@ -1,4 +1,5 @@
 import express from 'express';
+import cookieParser from 'cookie-parser';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { poller } from './poller.js';
@@ -13,7 +14,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 8787;
 
 const app = express();
+// Derrière un reverse proxy (CasaOS / domaine HTTPS) : fait confiance à
+// X-Forwarded-Proto pour que WebAuthn calcule le bon origin.
+app.set('trust proxy', true);
 app.use(express.json());
+app.use(cookieParser());
 app.use('/api', apiRouter);
 
 // Sert le build React (server/dist -> ../../web/dist).

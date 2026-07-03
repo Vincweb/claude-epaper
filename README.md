@@ -102,7 +102,19 @@ npm install
 npm run dev          # web (Vite) + API sur :8787
 ```
 
-Ouvre le dashboard, puis **⚙︎ Config → Importer les credentials**. Sans credentials, l'app démarre en **mode démo** (curseurs).
+À la **première connexion**, le dashboard te demande de créer une **passkey**
+(Touch ID / Face ID / clé de sécurité) et affiche un **code de récupération**
+(en QR) à sauvegarder. Ensuite, ouvre **Config → Importer les credentials** pour
+brancher tes limites Claude Code.
+
+> [!NOTE]
+> **Sécurité.** Le dashboard est protégé par une passkey WebAuthn. Si tu perds
+> ta passkey, connecte-toi avec le **code de récupération**. Les passkeys
+> exigent un accès **HTTPS** (ton domaine) ou `localhost` ; sur une IP LAN en
+> HTTP, utilise le code de récupération. L'auth (credential + code haché) vit
+> dans `CONFIG_DIR/auth.json` : un accès direct à la machine permet de la
+> réinitialiser en supprimant ce fichier. Les requêtes en **boucle locale**
+> (la boucle e-paper sur le Pi) ne sont pas soumises à l'auth.
 
 ## 🐳 Docker / CasaOS
 

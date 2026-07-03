@@ -62,7 +62,8 @@ function readFromKeychain(): OAuthCreds | null {
 export function importFromSource(): OAuthCreds | null {
   const cfg = loadConfig();
   let creds = readFromFile(cfg.credentialsPath);
-  if (!creds && cfg.useMacKeychain) creds = readFromKeychain();
+  // Sur macOS, Claude Code stocke aussi ses credentials dans le Keychain.
+  if (!creds && process.platform === 'darwin') creds = readFromKeychain();
   if (creds) saveStore(creds);
   return creds;
 }

@@ -7,7 +7,7 @@ import { loadConfig } from './config.js';
 // des polices système. Chemin résolu depuis dist/ comme depuis src/.
 const FONT_DIR = fileURLToPath(new URL('../fonts/', import.meta.url));
 const FONT_FILES = [`${FONT_DIR}DejaVuSansMono.ttf`, `${FONT_DIR}DejaVuSansMono-Bold.ttf`];
-import { deriveStats, formatReset, levelInfo, selectPose, type ClawdEyes, type Pose } from './mascot.js';
+import { formatReset, type ClawdEyes, type Pose } from './mascot.js';
 
 const INK = '#000000';
 const PAPER = '#ffffff';
@@ -99,25 +99,23 @@ function gatherData(paletteOverride?: 'bw' | 'bwr'): PanelData {
   const st = poller.state;
   const snap = st.snapshot;
   const palette = paletteOverride ?? cfg.epaperPalette;
-  const pose = selectPose({ now: new Date(), config: cfg, lastActivityAt: st.lastActivityAt });
-  const stats = deriveStats(snap, st.lastActivityAt);
-  const { level, label: age } = levelInfo(cfg.bornAt, st.usageXp);
+  // Pose / stats / niveau viennent du poller : identiques à l'écran web.
   const five = snap?.fiveHour ?? { utilization: 0, resetsAt: null };
   const seven = snap?.sevenDay ?? { utilization: 0, resetsAt: null };
   return {
     mono: palette === 'bw',
     red: palette === 'bwr',
     online: Boolean(st.snapshot) && st.authenticated && !st.lastError,
-    pose,
+    pose: st.pose,
     time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
     five: Math.round(five.utilization),
     fiveReset: formatReset(five.resetsAt),
     seven: Math.round(seven.utilization),
     sevenReset: formatReset(seven.resetsAt),
-    level,
-    age,
-    repu: stats.find((s) => s.key === 'repu')?.value ?? 0,
-    joie: stats.find((s) => s.key === 'bonheur')?.value ?? 0,
+    level: st.level,
+    age: st.ageLabel,
+    repu: st.stats.find((s) => s.key === 'repu')?.value ?? 0,
+    joie: st.stats.find((s) => s.key === 'bonheur')?.value ?? 0,
   };
 }
 
