@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { loginPasskey, recoverWithCode, registerPasskey } from '../api';
+import { ClaudeCharacter } from './ClaudeCharacter';
 
 type Props = { configured: boolean; onAuthenticated: () => void };
 
@@ -7,7 +8,11 @@ export function AuthScreen({ configured, onAuthenticated }: Props) {
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#1a1613] p-6 shadow-2xl">
-        <h1 className="mb-1 text-xl font-semibold">Claude e-paper</h1>
+        <div className="mb-4 flex flex-col items-center text-center">
+          <ClaudeCharacter size={112} frame="wide" eyes="happy" />
+          <h1 className="text-xl font-semibold">Claude e-paper</h1>
+          <p className="text-xs text-white/40">avec Clawd, ta mascotte</p>
+        </div>
         {configured ? (
           <Login onAuthenticated={onAuthenticated} />
         ) : (

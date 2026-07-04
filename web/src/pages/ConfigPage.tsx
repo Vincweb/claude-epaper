@@ -179,7 +179,12 @@ export function ConfigPage() {
         <Section title="Humeur" hint="Comportement de Clawd (poses contextuelles).">
           <div>
             <label className="mb-1 block text-xs text-white/60">Anniversaire (pose spéciale le jour J)</label>
-            <input type="date" className={field} value={form.birthday} onChange={(e) => patch({ birthday: e.target.value })} />
+            <input
+              type="date"
+              className={`${field} box-border block min-w-0 appearance-none`}
+              value={form.birthday}
+              onChange={(e) => patch({ birthday: e.target.value })}
+            />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
