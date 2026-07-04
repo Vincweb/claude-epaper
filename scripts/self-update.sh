@@ -9,7 +9,9 @@ LOG="${CONFIG_DIR:-$HOME/.claude-epaper}/update.log"
   echo "=== update $(date) ==="
   git checkout -- package-lock.json 2>/dev/null || true
   git pull --ff-only || { echo "✗ git pull"; exit 1; }
-  (npm ci || npm install) || { echo "✗ npm"; exit 1; }
+  # --include=dev : le build a besoin des devDeps (tsc, vite, tailwind) ; sous
+  # NODE_ENV=production (service systemd) npm les omettrait → build en échec.
+  (npm ci --include=dev || npm install --include=dev) || { echo "✗ npm"; exit 1; }
   npm run build || { echo "✗ build"; exit 1; }
   echo "=== build OK — redémarrage ==="
   pkill -f 'epaper_push.py' || true

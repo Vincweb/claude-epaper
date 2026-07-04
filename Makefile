@@ -48,8 +48,10 @@ waveshare: ## Lib Waveshare officielle (~/e-Paper, Linux uniquement)
 # npm ci = installation déterministe depuis le lockfile, SANS jamais le
 # réécrire (contrairement à npm install) → pas de churn qui bloque `git pull`
 # sur le Pi. Fallback sur npm install si le lockfile est désynchronisé.
+# --include=dev : le build a besoin des devDeps (tsc, vite, tailwind) ; sans
+# ça, sous NODE_ENV=production (service systemd), npm les omet → `tsc: not found`.
 node_modules: package.json package-lock.json server/package.json web/package.json
-	npm ci || npm install
+	npm ci --include=dev || npm install --include=dev
 	@touch node_modules
 
 .make-build.stamp: node_modules $(SRC)
