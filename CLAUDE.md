@@ -66,6 +66,11 @@ node scripts/gen-assets.mjs   # régénère les visuels docs/ (build serveur req
 
 ## Conventions & pièges
 
+- **Bump de version** : à chaque changement destiné à être déployé, incrémenter
+  la `version` du **`package.json` racine** (semver). C'est cette valeur qui
+  s'affiche dans Config (`GET /system/version`) et qui alimente la bannière
+  « mise à jour disponible » (`update-check` compare `origin/main:package.json`).
+  Ne pas oublier, sinon le Pi ne « voit » pas la nouvelle version.
 - **`npm ci`, pas `npm install`** : évite la réécriture du lockfile (deps natives
   ARM) qui bloquait `git pull` sur le Pi.
 - **Systemd** : services en `Restart=always` + `KillMode=process` pour que

@@ -34,7 +34,8 @@ export function ConfigPage() {
   const [savedFlash, setSavedFlash] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [passkeyMsg, setPasskeyMsg] = useState<string | null>(null);
-  const [updateMsg, setUpdateMsg] = useState<string | null>(null);
+  const [confirmUpdate, setConfirmUpdate] = useState(false);
+  const [updating, setUpdating] = useState<null | { phase: 'restart' | 'waiting'; error?: string }>(null);
   const [version, setVersion] = useState<VersionInfo | null>(null);
   const [upd, setUpd] = useState<UpdateCheck | null>(null);
   const [checking, setChecking] = useState(true);
@@ -89,30 +90,35 @@ export function ConfigPage() {
   };
 
   const doUpdate = async () => {
-    if (!confirm('Mettre à jour l’app (git pull + build + redémarrage) ? Le serveur va redémarrer.')) return;
-    setUpdateMsg('Mise à jour lancée… (1–2 min, le serveur va redémarrer)');
+    setConfirmUpdate(false);
+    const beforeCommit = version?.commit ?? null;
+    setUpdating({ phase: 'restart' });
     try {
       await systemUpdate();
     } catch {
-      setUpdateMsg('❌ Impossible de lancer la mise à jour (installée en service ?)');
+      setUpdating({
+        phase: 'restart',
+        error: 'Impossible de lancer la mise à jour (l’app est-elle installée en service ?)',
+      });
       return;
     }
-    const ping = () => fetch('/api/auth/state', { cache: 'no-store' }).then((r) => r.ok).catch(() => false);
-    const t0 = Date.now();
-    // 1) attendre que le serveur redémarre (tombe)…
-    while (Date.now() - t0 < 240_000) {
+    // 1) Laisser le serveur redémarrer tranquillement (build + restart : ~1–2 min).
+    await sleep(120_000);
+    // 2) Puis vérifier en fond, indéfiniment, que la nouvelle version est en ligne.
+    setUpdating({ phase: 'waiting' });
+    while (true) {
       await sleep(3000);
-      if (!(await ping())) break;
-    }
-    // 2) …puis qu'il revienne, et recharger.
-    while (Date.now() - t0 < 300_000) {
-      await sleep(3000);
-      if (await ping()) {
-        location.reload();
-        return;
+      try {
+        const v = await getVersion();
+        // Pas de commit de référence → on recharge dès que le serveur répond.
+        if (!beforeCommit || (v.commit && v.commit !== beforeCommit)) {
+          location.reload();
+          return;
+        }
+      } catch {
+        // Serveur encore indisponible : on continue d'attendre.
       }
     }
-    setUpdateMsg('⚠️ Délai dépassé — vérifie ~/.claude-epaper/update.log');
   };
 
   return (
@@ -245,7 +251,7 @@ export function ConfigPage() {
 
           <div className="flex flex-wrap items-center gap-3">
             <button
-              onClick={doUpdate}
+              onClick={() => setConfirmUpdate(true)}
               className={`rounded-lg px-3 py-2 text-sm ${
                 upd && upd.behind > 0
                   ? 'bg-[#d97757] font-medium text-black'
@@ -254,7 +260,6 @@ export function ConfigPage() {
             >
               ⟳ Mettre à jour l'app
             </button>
-            {updateMsg && <span className="text-xs text-white/70">{updateMsg}</span>}
           </div>
         </Section>
       </div>
@@ -270,6 +275,67 @@ export function ConfigPage() {
           {saving ? 'Enregistrement…' : 'Enregistrer'}
         </button>
       </div>
+
+      {confirmUpdate && (
+        <div
+          className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setConfirmUpdate(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#1a1613] p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold">Mettre à jour l'app ?</h2>
+            <p className="mt-2 text-sm text-white/60">
+              L'app va récupérer la dernière version (git pull + build) puis{' '}
+              <strong>redémarrer</strong>. Le service sera indisponible ~1–2 min.
+            </p>
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmUpdate(false)}
+                className="rounded-lg bg-white/10 px-4 py-2 text-sm hover:bg-white/20"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={doUpdate}
+                className="rounded-lg bg-[#d97757] px-4 py-2 text-sm font-medium text-black"
+              >
+                Mettre à jour
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {updating && (
+        <div className="fixed inset-0 z-40 flex flex-col items-center justify-center gap-6 bg-[#0d0b09] p-8 text-center">
+          {updating.error ? (
+            <>
+              <div className="text-4xl">⚠️</div>
+              <p className="max-w-xs text-sm text-white/70">{updating.error}</p>
+              <button
+                onClick={() => setUpdating(null)}
+                className="rounded-lg bg-white/10 px-4 py-2 text-sm hover:bg-white/20"
+              >
+                Fermer
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/15 border-t-[#d97757]" />
+              <div className="space-y-1">
+                <p className="text-lg font-semibold">Mise à jour en cours…</p>
+                <p className="max-w-xs text-sm text-white/55">
+                  {updating.phase === 'restart'
+                    ? 'Le serveur redémarre. Merci de patienter, la page se rechargera automatiquement.'
+                    : 'On attend le retour de la nouvelle version. La page se rechargera dès qu’elle est prête.'}
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

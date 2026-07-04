@@ -99,7 +99,7 @@ export interface VersionInfo {
   date: string;
 }
 export async function getVersion(): Promise<VersionInfo> {
-  return (await fetch('/api/system/version')).json();
+  return (await fetch('/api/system/version', { cache: 'no-store' })).json();
 }
 
 export interface UpdateCheck {

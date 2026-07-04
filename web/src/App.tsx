@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { NavLink, Outlet, Route, Routes, useOutletContext } from 'react-router-dom';
+import { NavLink, Outlet, Route, Routes, useLocation, useOutletContext } from 'react-router-dom';
 import { AuthScreen } from './components/AuthScreen';
 import { ScreenPage } from './pages/ScreenPage';
 import { EpaperPage } from './pages/EpaperPage';
@@ -74,6 +74,11 @@ const NAV = [
 function Layout({ onLogout }: { onLogout: () => void }) {
   const [state, setState] = useState<PollerState | null>(null);
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const location = useLocation();
+
+  // Referme le menu mobile dès qu'on change de page.
+  useEffect(() => setMenuOpen(false), [location.pathname]);
 
   const refreshConfig = useCallback(() => {
     getConfig().then(setConfig).catch(() => {});
@@ -94,21 +99,21 @@ function Layout({ onLogout }: { onLogout: () => void }) {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 py-6 sm:px-6 sm:py-8">
-      <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <header className="relative mb-6 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <h1 className="whitespace-nowrap text-xl font-semibold">Claude e-paper</h1>
           <StatusDot authenticated={authenticated} error={state?.lastError ?? null} />
         </div>
-        <div className="flex items-center gap-2 text-sm">
-          <nav className="flex flex-1 overflow-hidden rounded-lg bg-white/10">
+
+        {/* Desktop : barre d'onglets + déconnexion. */}
+        <div className="hidden items-center gap-2 text-sm sm:flex">
+          <nav className="flex overflow-hidden rounded-lg bg-white/10">
             {NAV.map((n) => (
               <NavLink
                 key={n.to}
                 to={n.to}
                 end={n.end}
-                className={({ isActive }) =>
-                  `flex-1 whitespace-nowrap px-3 py-1.5 text-center ${isActive ? 'bg-[#d97757] text-black' : ''}`
-                }
+                className={({ isActive }) => `px-3 py-1.5 ${isActive ? 'bg-[#d97757] text-black' : ''}`}
               >
                 {n.label}
               </NavLink>
@@ -122,6 +127,42 @@ function Layout({ onLogout }: { onLogout: () => void }) {
             ⎋
           </button>
         </div>
+
+        {/* Mobile : bouton menu qui ouvre un panneau déroulant. */}
+        <button
+          onClick={() => setMenuOpen((o) => !o)}
+          className="rounded-lg bg-white/10 px-3 py-2 text-lg leading-none hover:bg-white/20 sm:hidden"
+          aria-label="Menu"
+          aria-expanded={menuOpen}
+        >
+          {menuOpen ? '✕' : '☰'}
+        </button>
+
+        {menuOpen && (
+          <>
+            <div className="fixed inset-0 z-10 sm:hidden" onClick={() => setMenuOpen(false)} />
+            <nav className="absolute right-0 top-full z-20 mt-2 flex w-48 flex-col overflow-hidden rounded-xl border border-white/10 bg-[#1a1613] text-sm shadow-2xl sm:hidden">
+              {NAV.map((n) => (
+                <NavLink
+                  key={n.to}
+                  to={n.to}
+                  end={n.end}
+                  className={({ isActive }) =>
+                    `px-4 py-3 ${isActive ? 'bg-[#d97757] text-black' : 'hover:bg-white/10'}`
+                  }
+                >
+                  {n.label}
+                </NavLink>
+              ))}
+              <button
+                onClick={doLogout}
+                className="border-t border-white/10 px-4 py-3 text-left hover:bg-white/10"
+              >
+                Se déconnecter
+              </button>
+            </nav>
+          </>
+        )}
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center gap-8">
