@@ -93,20 +93,22 @@ function Layout({ onLogout }: { onLogout: () => void }) {
   };
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-3xl flex-col px-6 py-8">
-      <header className="mb-6 flex items-center justify-between gap-3">
+    <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 py-6 sm:px-6 sm:py-8">
+      <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
-          <h1 className="text-xl font-semibold">Claude e-paper</h1>
+          <h1 className="whitespace-nowrap text-xl font-semibold">Claude e-paper</h1>
           <StatusDot authenticated={authenticated} error={state?.lastError ?? null} />
         </div>
         <div className="flex items-center gap-2 text-sm">
-          <nav className="flex overflow-hidden rounded-lg bg-white/10">
+          <nav className="flex flex-1 overflow-hidden rounded-lg bg-white/10">
             {NAV.map((n) => (
               <NavLink
                 key={n.to}
                 to={n.to}
                 end={n.end}
-                className={({ isActive }) => `px-3 py-1.5 ${isActive ? 'bg-[#d97757] text-black' : ''}`}
+                className={({ isActive }) =>
+                  `flex-1 whitespace-nowrap px-3 py-1.5 text-center ${isActive ? 'bg-[#d97757] text-black' : ''}`
+                }
               >
                 {n.label}
               </NavLink>
@@ -114,7 +116,7 @@ function Layout({ onLogout }: { onLogout: () => void }) {
           </nav>
           <button
             onClick={doLogout}
-            className="rounded-lg bg-white/10 px-3 py-1.5 hover:bg-white/20"
+            className="shrink-0 rounded-lg bg-white/10 px-3 py-1.5 hover:bg-white/20"
             title="Se déconnecter"
           >
             ⎋
