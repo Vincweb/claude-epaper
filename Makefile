@@ -50,11 +50,17 @@ waveshare: ## Lib Waveshare officielle (~/e-Paper, Linux uniquement)
 # sur le Pi. Fallback sur npm install si le lockfile est désynchronisé.
 # --include=dev : le build a besoin des devDeps (tsc, vite, tailwind) ; sans
 # ça, sous NODE_ENV=production (service systemd), npm les omet → `tsc: not found`.
-node_modules: package.json package-lock.json server/package.json web/package.json
+#
+# On jalonne l'install sur un MARQUEUR (node_modules/.install-stamp) plutôt que
+# sur le dossier node_modules lui-même : un déploiement installé jadis sans
+# devDeps a bien un node_modules « récent » (donc considéré à jour par make) mais
+# incomplet. Le marqueur, absent dans ce cas, force une réinstallation.
+NODE_STAMP := node_modules/.install-stamp
+$(NODE_STAMP): package.json package-lock.json server/package.json web/package.json
 	npm ci --include=dev || npm install --include=dev
-	@touch node_modules
+	@touch $(NODE_STAMP)
 
-.make-build.stamp: node_modules $(SRC)
+.make-build.stamp: $(NODE_STAMP) $(SRC)
 	npm run build
 	@touch $@
 
