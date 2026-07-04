@@ -112,7 +112,11 @@ export function ConfigPage() {
         const v = await getVersion();
         // Pas de commit de référence → on recharge dès que le serveur répond.
         if (!beforeCommit || (v.commit && v.commit !== beforeCommit)) {
-          location.reload();
+          // Cache-bust : force le navigateur à recharger un index.html frais
+          // (pointant vers le nouveau JS hashé), sans dépendre de son cache.
+          const url = new URL(window.location.href);
+          url.searchParams.set('v', v.commit || String(v.version));
+          window.location.replace(url.toString());
           return;
         }
       } catch {
