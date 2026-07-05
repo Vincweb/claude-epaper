@@ -130,7 +130,13 @@ def main():
             last_digest = digest
             print(f"[epaper] refresh partiel ({partials_since_full})", flush=True)
 
-        time.sleep(POLL_SECONDS)
+        # Cadence ALIGNÉE sur l'horloge murale : le serveur anime selon
+        # floor(time / POLL_SECONDS). Si on dormait POLL_SECONDS après un cycle
+        # de durée variable (fetch + refresh e-ink), l'échantillonnage dériverait
+        # et le clignotement sauterait/doublerait des secondes. On dort donc
+        # jusqu'à juste après la prochaine frontière → une frame par seconde, net.
+        period = max(1, POLL_SECONDS)
+        time.sleep(period - (time.time() % period) + 0.02)
 
 
 if __name__ == "__main__":
