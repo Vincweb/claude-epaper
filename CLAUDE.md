@@ -11,8 +11,8 @@ UI, commentaires de code et messages de commit en **français** (accents inclus)
 ## Stack
 
 - **Serveur** : Node 22 + TypeScript (ESM), Express 4. Rendu SVG→PNG via
-  `@resvg/resvg-js` (police **DejaVu Sans Mono embarquée** dans `server/fonts/`,
-  `loadSystemFonts:false` → rendu déterministe).
+  `@resvg/resvg-js` (police **pixel Tiny5 embarquée** dans `server/fonts/`, OFL —
+  nette à petite taille sur l'e-ink ; `loadSystemFonts:false` → déterministe).
 - **Web** : React 19 + Vite 6 + Tailwind v4, `react-router-dom`.
 - **Auth** : WebAuthn (`@simplewebauthn/server` + `/browser`), passkey unique +
   code de récupération (QR via `qrcode`), session cookie signée (`cookie-parser`).
@@ -104,7 +104,7 @@ node scripts/gen-sprites.mjs   # régénère les sprites de poses par défaut
 
 ```
 server/src/  index · poller · render · mascot · auth · credentials · usage · config · routes/api
-server/fonts/  DejaVu Sans Mono (embarquée pour resvg)
+server/fonts/  Tiny5 (police pixel embarquée pour resvg, OFL)
 web/src/     App · api · lib/usage · pages/* · components/*
 scripts/     epaper_push.py · self-update.sh · gen-assets.mjs · *.service
 Makefile · CLAUDE.md · README.md · ROADMAP.md

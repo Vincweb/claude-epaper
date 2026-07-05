@@ -15,10 +15,13 @@ import {
   type Pose,
 } from './mascot.js';
 
-// Polices embarquées (server/fonts) → rendu identique partout, sans dépendre
-// des polices système. Chemin résolu depuis dist/ comme depuis src/.
+// Police embarquée (server/fonts) → rendu identique partout, sans dépendre des
+// polices système. Tiny5 = police PIXEL/bitmap (OFL) : nette à petite taille sur
+// l'e-ink, là où une police vectorielle (DejaVu) casse sous ~9 px. Chemin résolu
+// depuis dist/ comme depuis src/.
 const FONT_DIR = fileURLToPath(new URL('../fonts/', import.meta.url));
-const FONT_FILES = [`${FONT_DIR}DejaVuSansMono.ttf`, `${FONT_DIR}DejaVuSansMono-Bold.ttf`];
+const FONT_FAMILY = 'Tiny5';
+const FONT_FILES = [`${FONT_DIR}Tiny5-Regular.ttf`];
 
 const INK = '#000000';
 const PAPER = '#ffffff';
@@ -472,13 +475,13 @@ export function rasterizeSvg(svg: string, widthPx: number, transparent = false):
   const resvg = new Resvg(svg, {
     ...(transparent ? {} : { background: PAPER }),
     fitTo: { mode: 'width', value: widthPx },
-    // La police générique "monospace" du SVG est mappée sur la DejaVu embarquée.
+    // La police générique "monospace" du SVG est mappée sur Tiny5 (pixel).
     // loadSystemFonts:false = rendu déterministe + init plus rapide (Pi Zero).
     font: {
       loadSystemFonts: false,
       fontFiles: FONT_FILES,
-      defaultFontFamily: 'DejaVu Sans Mono',
-      monospaceFamily: 'DejaVu Sans Mono',
+      defaultFontFamily: FONT_FAMILY,
+      monospaceFamily: FONT_FAMILY,
     },
   });
   return Buffer.from(resvg.render().asPng());

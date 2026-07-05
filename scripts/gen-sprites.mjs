@@ -18,9 +18,9 @@ const SPRITES = fileURLToPath(new URL('../server/sprites/', import.meta.url));
 const FONT_DIR = fileURLToPath(new URL('../server/fonts/', import.meta.url));
 const font = {
   loadSystemFonts: false,
-  fontFiles: [`${FONT_DIR}DejaVuSansMono.ttf`, `${FONT_DIR}DejaVuSansMono-Bold.ttf`],
-  defaultFontFamily: 'DejaVu Sans Mono',
-  monospaceFamily: 'DejaVu Sans Mono',
+  fontFiles: [`${FONT_DIR}Tiny5-Regular.ttf`],
+  defaultFontFamily: 'Tiny5',
+  monospaceFamily: 'Tiny5',
 };
 
 // Résolution native par variante : e-paper = taille d'affichage exacte (1:1).
