@@ -378,25 +378,31 @@ function gatherData(): PanelData {
 
 /** Statut : « online » avec point qui CLIGNOTE (1 s plein / 1 s absent) ;
  * « offline » avec cercle vide, statique. Centré sur cx. */
-function statusSvg(cx: number, y: number, online: boolean, tick: number): string {
+function statusSvg(cx: number, y: number, online: boolean, tick: number, fs = 9): string {
   const label = online ? 'online' : 'offline';
-  const textW = label.length * 5.5; // ~font-size 9 monospace
-  const dotCx = cx - textW / 2 - 3;
+  const r = fs * 0.42;
+  const textCx = cx + r; // décale le texte pour loger le point à sa gauche
+  const dotCx = textCx - (label.length * fs * 0.62) / 2 - r - 1;
+  const cy = y - fs * 0.32;
   const dot = online
     ? tick % 2 === 0
-      ? `<circle cx="${dotCx}" cy="${y - 3}" r="3.5" fill="${INK}"/>`
+      ? `<circle cx="${dotCx}" cy="${cy}" r="${r}" fill="${INK}"/>`
       : ''
-    : `<circle cx="${dotCx}" cy="${y - 3}" r="3.5" fill="${PAPER}" stroke="${INK}" stroke-width="1.5"/>`;
-  return `${dot}<text x="${cx + 5}" y="${y}" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="9" fill="${INK}">${label}</text>`;
+    : `<circle cx="${dotCx}" cy="${cy}" r="${r}" fill="${PAPER}" stroke="${INK}" stroke-width="1.5"/>`;
+  return `${dot}<text x="${textCx}" y="${y}" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="${fs}" fill="${INK}">${label}</text>`;
 }
 
-/** Ligne limite : « 5 H (47%) », barre fine, reset à droite. */
-function barRow(x: number, y: number, w: number, label: string, v: number, reset: string): string {
+/** Ligne limite : « 5 H (47%) », barre, reset à droite. `big` = format horizontal. */
+function barRow(x: number, y: number, w: number, label: string, v: number, reset: string, big = false): string {
+  const lf = big ? 12 : 9; // label
+  const pf = big ? 8 : 7; // pourcentage
+  const bh = big ? 9 : 7; // hauteur de barre
+  const rf = big ? 8 : 7; // reset
   return `
-    <text x="${x}" y="${y}" font-family="monospace" font-weight="bold" font-size="9" fill="${INK}">${label} <tspan font-weight="normal" font-size="7">(${v}%)</tspan></text>
-    <rect x="${x}" y="${y + 4}" width="${w}" height="7" fill="${PAPER}" stroke="${INK}" stroke-width="1.5"/>
-    <rect x="${x + 2}" y="${y + 6}" width="${(w - 4) * (v / 100)}" height="3" fill="${INK}"/>
-    <text x="${x + w}" y="${y + 20}" text-anchor="end" font-family="monospace" font-size="7" fill="${INK}">reset ${reset}</text>`;
+    <text x="${x}" y="${y}" font-family="monospace" font-weight="bold" font-size="${lf}" fill="${INK}">${label} <tspan font-weight="normal" font-size="${pf}">(${v}%)</tspan></text>
+    <rect x="${x}" y="${y + 4}" width="${w}" height="${bh}" fill="${PAPER}" stroke="${INK}" stroke-width="1.5"/>
+    <rect x="${x + 2}" y="${y + 6}" width="${(w - 4) * (v / 100)}" height="${bh - 4}" fill="${INK}"/>
+    <text x="${x + w}" y="${y + bh + 13}" text-anchor="end" font-family="monospace" font-size="${rf}" fill="${INK}">reset ${reset}</text>`;
 }
 
 /** Mini-stat : label + barre de progression continue. */
@@ -410,16 +416,16 @@ function statMini(x: number, y: number, label: string, value: number, barW = 26)
 /** Horizontal 250×122 : carré mascotte pleine hauteur à gauche, infos à droite. */
 export function buildHorizontal(d: PanelData, rotate: 0 | 180): string {
   const W = 250, H = 122;
-  const rx = 130, rw = 112, rcx = rx + rw / 2;
+  const rx = 132, rw = 108, rcx = rx + rw / 2;
   const inner = `
   ${clawdSquare(d.pose, 2, 2, 118, d.tick)}
-  <rect x="122" y="2" width="2" height="118" fill="${INK}"/>
-  ${statusSvg(rcx, 15, d.online, d.tick)}
-  ${barRow(rx, 33, rw, '5 H', d.five, d.fiveReset)}
-  ${barRow(rx, 67, rw, '7 J', d.seven, d.sevenReset)}
-  <rect x="${rx}" y="92" width="${rw}" height="2" fill="${INK}"/>
-  <text x="${rcx}" y="104" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="9" fill="${INK}">Nv.${d.level} · ${d.age}</text>
-  ${statMini(rx, 109, 'REP', d.repu, 26)}${statMini(rx + 58, 109, 'JOI', d.joie, 26)}`;
+  <rect x="122" y="16" width="2" height="90" fill="${INK}"/>
+  ${statusSvg(rcx, 13, d.online, d.tick, 11)}
+  ${barRow(rx, 32, rw, '5 H', d.five, d.fiveReset, true)}
+  ${barRow(rx, 66, rw, '7 J', d.seven, d.sevenReset, true)}
+  <rect x="${rx}" y="94" width="${rw}" height="2" fill="${INK}"/>
+  <text x="${rcx}" y="105" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="10" fill="${INK}">Nv.${d.level} · ${d.age}</text>
+  ${statMini(rx, 110, 'REP', d.repu, 24)}${statMini(rx + 56, 110, 'JOI', d.joie, 24)}`;
   return svgDoc(W, H, inner, rotate, 2);
 }
 
