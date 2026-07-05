@@ -154,6 +154,14 @@ Réglages (variables d'environnement, dans [`epaper-push.service`](scripts/epape
 > montre exactement ce que reçoit la dalle. Dalle montée à l'envers ? Coche
 > **Rotation 180°** dans ⚙︎ Config (l'aperçu web, lui, reste à l'endroit).
 
+> ⚠️ La **mise à jour depuis le dashboard** (`self-update.sh`) fait `git pull` +
+> build + redémarre les process, mais **ne réinstalle pas les unités systemd**
+> (ça demande `sudo`). Si un `*.service` change (ex. variables d'environnement),
+> relance **une fois** `make services`. Les réglages de comportement de la boucle
+> (`POLL_SECONDS`, `FULL_REFRESH_*`…) ne sont plus figés dans l'unité : ils
+> suivent les défauts du script, donc une simple mise à jour du code les fait
+> évoluer.
+
 ## 💻 Développement
 
 ```bash

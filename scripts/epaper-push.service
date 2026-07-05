@@ -10,12 +10,11 @@ User=pi
 WorkingDirectory=/home/pi/claude-epaper
 # Module waveshare_epd : chemin de la lib officielle clonée (install native).
 Environment=PYTHONPATH=/home/pi/e-Paper/RaspberryPi_JetsonNano/python/lib
-# Variables : soit ici en clair, soit via EnvironmentFile (décommenter).
+# Seulement les variables spécifiques à la machine ; les réglages de comportement
+# (POLL_SECONDS, FULL_REFRESH_*, EPAPER_THRESHOLD…) suivent les défauts du script
+# → une mise à jour du code les fait évoluer sans refaire `make services`.
 Environment=RENDER_URL=http://localhost:8787/api/render.png
 Environment=EPD_MODEL=epd2in13_V4
-Environment=POLL_SECONDS=5
-Environment=FULL_REFRESH_EVERY=20
-Environment=FULL_REFRESH_SECONDS=1800
 #EnvironmentFile=/home/pi/claude-epaper/scripts/epaper-push.env
 ExecStart=/usr/bin/python3 /home/pi/claude-epaper/scripts/epaper_push.py
 Restart=always
