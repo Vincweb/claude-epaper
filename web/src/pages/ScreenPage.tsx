@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../App';
-import { ClaudeCharacter } from '../components/ClaudeCharacter';
+import { poseAssetUrl } from '../api';
 import { Gauge } from '../components/Gauge';
 import { TamagotchiStats } from '../components/TamagotchiStats';
 import { StatsModal } from '../components/StatsModal';
@@ -50,13 +50,13 @@ export function ScreenPage() {
   return (
     <>
       <div className="flex flex-col items-center">
-        <ClaudeCharacter
-          pulseKey={pulseKey}
-          eyes={pose.eyes}
-          mouth={pose.mouth}
-          accessory={pose.accessory}
-          overhead={pose.overhead}
-          frame="wide"
+        {/* Sprite fichier (PNG/GIF) : même source que la galerie ; un GIF s'anime tout seul. */}
+        <img
+          key={`${pose.key}-${pulseKey}`}
+          src={poseAssetUrl('web', pose.key)}
+          alt={pose.title}
+          className="cc-pop h-[220px] w-[220px] object-contain"
+          style={{ imageRendering: 'pixelated' }}
         />
         <div className="mt-1 flex items-center gap-2">
           <span className="rounded-full bg-white/10 px-4 py-1 text-sm font-medium text-white/80">

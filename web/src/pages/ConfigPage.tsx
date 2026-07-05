@@ -198,22 +198,13 @@ export function ConfigPage() {
           </div>
         </Section>
 
-        <Section title="Affichage" hint="Rendu envoyé à la dalle e-paper.">
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="mb-1 block text-xs text-white/60">Palette</label>
-              <select className={field} value={form.epaperPalette} onChange={(e) => patch({ epaperPalette: e.target.value as AppConfig['epaperPalette'] })}>
-                <option value="bw">Noir &amp; blanc</option>
-                <option value="bwr">Noir / blanc / rouge</option>
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-white/60">Mise en page</label>
-              <select className={field} value={form.epaperLayout} onChange={(e) => patch({ epaperLayout: e.target.value as AppConfig['epaperLayout'] })}>
-                <option value="compact">Compact 2.13"</option>
-                <option value="full">Grand 7.5"</option>
-              </select>
-            </div>
+        <Section title="Affichage" hint="Rendu envoyé à la dalle e-paper (2,13″, noir &amp; blanc).">
+          <div>
+            <label className="mb-1 block text-xs text-white/60">Orientation</label>
+            <select className={field} value={form.epaperLayout} onChange={(e) => patch({ epaperLayout: e.target.value as AppConfig['epaperLayout'] })}>
+              <option value="horizontal">Horizontale (250×122)</option>
+              <option value="vertical">Verticale (122×250)</option>
+            </select>
           </div>
           <label className="flex items-center justify-between gap-2 text-sm">
             <span>Rotation 180° (dalle montée à l'envers)</span>

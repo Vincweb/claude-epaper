@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { AppConfig } from '../lib/usage';
 
-type Palette = AppConfig['epaperPalette'];
 type Layout = AppConfig['epaperLayout'];
 
 interface Props {
-  palette: Palette;
   layout: Layout;
   /** Rotation configurée pour la dalle physique (l'aperçu reste à l'endroit). */
   configRotate: 0 | 180;
@@ -16,30 +14,33 @@ interface Props {
 
 /**
  * Aperçu FIDÈLE : affiche le PNG exact généré par le serveur (celui envoyé à
- * la dalle), upscalé en nearest-neighbor — MAIS toujours à l'endroit : la
- * rotation configurée ne s'applique qu'à la dalle physique, pas à l'aperçu.
+ * la dalle 2,13″), upscalé en nearest-neighbor — MAIS toujours à l'endroit :
+ * la rotation configurée ne s'applique qu'à la dalle physique, pas à l'aperçu.
+ * Rafraîchi chaque seconde pour suivre les animations (point online, GIF).
  */
-export function EpaperView({ palette, layout, configRotate, online, version }: Props) {
-  const [pal, setPal] = useState<Palette>(palette);
+export function EpaperView({ layout, configRotate, online, version }: Props) {
   const [lay, setLay] = useState<Layout>(layout);
   const [tick, setTick] = useState(0);
   const [error, setError] = useState(false);
 
-  useEffect(() => setPal(palette), [palette]);
   useEffect(() => setLay(layout), [layout]);
 
+  // 1 s : suit le rythme d'animation du rendu serveur (comme la dalle).
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 30_000);
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(id);
   }, []);
 
   // rotate=0 explicite : l'aperçu ne suit jamais la rotation de la dalle.
-  const src = `/api/render.png?layout=${lay}&palette=${pal}&rotate=0&v=${encodeURIComponent(version)}-${tick}`;
+  const src = `/api/render.png?layout=${lay}&rotate=0&v=${encodeURIComponent(version)}-${tick}`;
+  // Une erreur (serveur éteint ?) est retentée au tick suivant.
   useEffect(() => setError(false), [src]);
 
-  const compact = lay === 'compact';
-  const nativeW = compact ? 250 : 800;
-  const nativeH = compact ? 122 : 480;
+  const horizontal = lay === 'horizontal';
+  const nativeW = horizontal ? 250 : 122;
+  const nativeH = horizontal ? 122 : 250;
+  // Portrait : largeur bornée pour éviter une image démesurément haute.
+  const previewW = horizontal ? 'min(750px, 90vw)' : 'min(360px, 70vw)';
 
   return (
     <div className="flex flex-col items-center gap-3">
@@ -56,19 +57,18 @@ export function EpaperView({ palette, layout, configRotate, online, version }: P
         {error ? (
           <div
             className="flex items-center justify-center bg-white font-mono text-xs text-black/60"
-            style={{ width: 'min(750px, 90vw)', aspectRatio: `${nativeW} / ${nativeH}` }}
+            style={{ width: previewW, aspectRatio: `${nativeW} / ${nativeH}` }}
           >
             rendu indisponible — serveur éteint ?
           </div>
         ) : (
           <img
-            key={src}
             src={src}
             onError={() => setError(true)}
             alt={`Rendu e-paper ${nativeW}×${nativeH}`}
             className="block"
             style={{
-              width: 'min(750px, 90vw)',
+              width: previewW,
               aspectRatio: `${nativeW} / ${nativeH}`,
               imageRendering: 'pixelated',
             }}
@@ -78,29 +78,17 @@ export function EpaperView({ palette, layout, configRotate, online, version }: P
 
       <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-white/50">
         <span>
-          Rendu réel {nativeW}×{nativeH}
-          {compact ? ' (2,13″)' : ' (7,5″)'}
+          Rendu réel {nativeW}×{nativeH} (2,13″)
           {configRotate === 180 ? ' · dalle tournée 180°' : ''}
         </span>
         <div className="flex overflow-hidden rounded-lg bg-white/10">
-          {(['bw', 'bwr'] as const).map((p) => (
-            <button
-              key={p}
-              onClick={() => setPal(p)}
-              className={`px-3 py-1 ${pal === p ? 'bg-[#d97757] text-black' : ''}`}
-            >
-              {p === 'bw' ? 'Noir & blanc' : 'N/B/rouge'}
-            </button>
-          ))}
-        </div>
-        <div className="flex overflow-hidden rounded-lg bg-white/10">
-          {(['compact', 'full'] as const).map((l) => (
+          {(['horizontal', 'vertical'] as const).map((l) => (
             <button
               key={l}
               onClick={() => setLay(l)}
               className={`px-3 py-1 ${lay === l ? 'bg-[#d97757] text-black' : ''}`}
             >
-              {l === 'compact' ? '2,13″' : '7,5″'}
+              {l === 'horizontal' ? 'Horizontal' : 'Vertical'}
             </button>
           ))}
         </div>

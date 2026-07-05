@@ -6,7 +6,6 @@ export function EpaperPage() {
   const online = Boolean(state?.authenticated && state?.snapshot && !state?.lastError);
   return (
     <EpaperView
-      palette={config.epaperPalette}
       layout={config.epaperLayout}
       configRotate={config.epaperRotate}
       online={online}

@@ -35,10 +35,8 @@ export interface AppConfig {
   pollIntervalMs: number;
   credentialsPath: string;
   thresholds: { alert: number; worried: number; panic: number };
-  /** Palette de l'e-paper: noir/blanc ou noir/blanc/rouge. */
-  epaperPalette: 'bw' | 'bwr';
-  /** Mise en page e-paper: 'compact' (2.13") ou 'full' (800x480). */
-  epaperLayout: 'compact' | 'full';
+  /** Orientation de la dalle 2,13" (250x122) : paysage ou portrait. */
+  epaperLayout: 'horizontal' | 'vertical';
   /** Rotation de l'affichage e-paper (dalle montée à l'envers). */
   epaperRotate: 0 | 180;
   /** Date d'anniversaire (YYYY-MM-DD ou MM-DD) pour la pose spéciale. */

@@ -27,6 +27,46 @@ export async function resetPose(): Promise<void> {
   await fetch('/api/pose/reset', { method: 'POST' });
 }
 
+/* ------------------------------ sprites poses ------------------------------ */
+
+export type SpriteVariant = 'epaper' | 'web';
+
+export interface PoseAssetInfo {
+  animated: boolean;
+  custom: boolean;
+}
+
+export interface PoseInfo {
+  key: string;
+  title: string;
+  epaper: PoseAssetInfo;
+  web: PoseAssetInfo;
+}
+
+export async function listPoses(): Promise<PoseInfo[]> {
+  const r = await fetch('/api/poses');
+  return (await r.json()).poses ?? [];
+}
+
+export function poseAssetUrl(variant: SpriteVariant, key: string, bump = 0): string {
+  return `/api/poses/${variant}/${key}?v=${bump}`;
+}
+
+/** Remplace le visuel d'une pose (PNG ou GIF envoyé tel quel). */
+export async function uploadPoseAsset(variant: SpriteVariant, key: string, file: File): Promise<void> {
+  const r = await fetch(`/api/poses/${variant}/${key}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type || 'application/octet-stream' },
+    body: file,
+  });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? 'upload-failed');
+}
+
+/** Supprime la personnalisation d'une pose (retour au visuel par défaut). */
+export async function resetPoseAsset(variant: SpriteVariant, key: string): Promise<void> {
+  await fetch(`/api/poses/${variant}/${key}`, { method: 'DELETE' });
+}
+
 /** Abonnement SSE à l'état du poller. Renvoie une fonction de désinscription. */
 export function subscribeState(onState: (s: PollerState) => void): () => void {
   const es = new EventSource('/api/usage/stream');
