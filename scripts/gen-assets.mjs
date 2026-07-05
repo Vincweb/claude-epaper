@@ -3,7 +3,7 @@
 //   npm run build -w server && node scripts/gen-assets.mjs
 import { Resvg } from '@resvg/resvg-js';
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { buildCompact, buildFull, rasterizeSvg } from '../server/dist/render.js';
+import { buildHorizontal, buildVertical, rasterizeSvg } from '../server/dist/render.js';
 
 const INK = '#141414';
 const BASE = '#d97757';
@@ -121,16 +121,14 @@ function clawdFull(pose) {
 // Les panneaux viennent du vrai moteur de rendu (server/dist/render.js) : les
 // visuels du README sont exactement ce que la dalle reçoit.
 
-function demoData(palette, extra = {}) {
+function demoData(extra = {}) {
   return {
-    mono: palette === 'bw',
-    red: palette === 'bwr',
     online: true,
-    pose: { key: 'working', title: 'Au travail', eyes: 'square', accessory: 'laptop' },
-    time: '14:32',
+    pose: { key: 'working', title: 'Au travail', eyes: 'square', accessory: 'skateboard' },
     five: 47, fiveReset: '2h 45',
     seven: 63, sevenReset: '4j 2h',
     level: 3, age: '18 j', repu: 92, joie: 80,
+    tick: 0, // frame figée (point online plein) pour un visuel stable
     ...extra,
   };
 }
@@ -182,23 +180,21 @@ function png(svg, width) {
 
 mkdirSync('docs', { recursive: true });
 
-// Aperçus e-paper compacts (2.13", rendus en x3 pour la netteté du README).
-writeFileSync('docs/epaper-color.png', rasterizeSvg(buildCompact(demoData('bwr'), 0), 750));
+// Aperçus e-paper 2,13" N&B (rendus en x3 pour la netteté du README).
+writeFileSync('docs/epaper-horizontal.png', rasterizeSvg(buildHorizontal(demoData(), 0), 750));
 writeFileSync(
-  'docs/epaper-bw.png',
+  'docs/epaper-vertical.png',
   rasterizeSvg(
-    buildCompact(
-      demoData('bw', {
-        pose: { title: 'Dodo', eyes: 'sleep', overhead: 'zzz' },
+    buildVertical(
+      demoData({
+        pose: { key: 'sleep', title: 'Dodo', eyes: 'sleep', overhead: 'zzz' },
         five: 8, fiveReset: '3h10', seven: 22, sevenReset: '5j 6h', repu: 40, joie: 66,
       }),
       0,
     ),
-    750,
+    366,
   ),
 );
-// Rendu grand format (7.5") pour référence.
-writeFileSync('docs/epaper-full.png', rasterizeSvg(buildFull(demoData('bwr'), 0), 800));
 writeFileSync('docs/mascot-poses.png', png(posesSheet(), 900));
 
-console.log('OK — docs/epaper-{color,bw,full}.png, docs/mascot-poses.png');
+console.log('OK — docs/epaper-{horizontal,vertical}.png, docs/mascot-poses.png');

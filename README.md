@@ -14,10 +14,10 @@
 
 <br/>
 
-<em>Le rendu sur écran e-paper 2.13" — noir/blanc/rouge ou noir & blanc :</em>
+<em>Le rendu sur écran e-paper 2.13" — horizontal ou vertical :</em>
 
-<img src="docs/epaper-color.png" width="380" alt="Rendu e-paper couleur" />
-<img src="docs/epaper-bw.png" width="380" alt="Rendu e-paper noir et blanc" />
+<img src="docs/epaper-horizontal.png" width="380" alt="Rendu e-paper horizontal" />
+<img src="docs/epaper-vertical.png" width="186" alt="Rendu e-paper vertical" />
 
 </div>
 
@@ -37,7 +37,8 @@ Le tout est incarné par **Clawd**, la mascotte crabe de Claude Code, qui change
 - 📊 **Vraies limites** — interroge le même endpoint que la commande `/usage` de Claude Code (fenêtres 5 h & 7 j, heures de reset).
 - 🦀 **Clawd, la mascotte** — une douzaine de poses (au travail, pause café le matin, dodo la nuit, anniversaire, bisou, au soleil, sous la pluie…), qui **tournent au fil de la journée**.
 - 🎮 **Stats Tamagotchi** — Énergie, Forme, Repu, Bonheur + un **niveau** qui monte avec le temps *et* avec ton usage.
-- 🖥️ **Rendu e-paper fidèle** — génère le PNG exact de la dalle (N&B **ou** N/B/rouge), sans anti-aliasing ; l'aperçu web montre pixel pour pixel ce que reçoit la dalle.
+- 🖥️ **Rendu e-paper fidèle** — génère le PNG exact de la dalle (N&B, sans anti-aliasing) ; l'aperçu web montre pixel pour pixel ce que reçoit la dalle.
+- 🎞️ **Poses animées** — chaque pose est un fichier PNG (fixe) ou GIF (animé, 1 image/s + pause de 10 s), remplaçable depuis la galerie web ; le point « online » clignote en direct.
 - 🔐 **Auth passkey** — dashboard protégé par WebAuthn + code de récupération.
 - ⚙️ **Installation en une commande** — `make install` (Node, libs, build) puis `make run`, ou en service `systemd` au boot.
 
@@ -58,16 +59,16 @@ choisie automatiquement selon le contexte (jamais selon le stress de la limite) 
 La pose est calculée **côté serveur** : l'écran web et l'e-paper affichent donc
 toujours exactement la même mascotte (en couleur sur le web, en line-art N&B sur l'e-ink).
 
-## 📐 Deux formats d'écran
+## 📐 Deux orientations
 
-Le rendu s'adapte à la taille de ta dalle (`epaperLayout` en config) :
+La dalle 2.13" (250×122) se monte dans le sens que tu veux (`epaperLayout` en config) :
 
-**Compact — 2.13" (250×122)** _(voir le hero en haut)_ : Clawd, les jauges 5 h / 7 j
-et des mini-stats Tamagotchi.
+**Horizontal (250×122)** : le carré mascotte à gauche (pleine hauteur), les infos à droite.
 
-**Grand — 7.5" (800×480)** : la version détaillée, avec stats complètes.
+**Vertical (122×250)** : online en haut, le carré mascotte, puis limites et stats.
 
-<div align="center"><img src="docs/epaper-full.png" width="620" alt="Rendu e-paper grand format 7.5 pouces" /></div>
+Dans les deux cas la mascotte occupe le même carré de 118×118 pixels : les
+sprites sont dessinés à cette taille et affichés **1:1** (aucune perte).
 
 ## 🧩 Comment ça marche
 
@@ -130,25 +131,24 @@ journalctl -u epaper-push -f       # logs de la dalle (refresh partiel/complet)
 
 ## 🖥️ Brancher l'e-paper
 
-La boucle [`epaper_push.py`](scripts/epaper_push.py) tire `/api/render.png` en local
-à cadence rapide mais **ne touche la dalle que si l'image a changé**. À la façon de
-[Bjorn](https://github.com/infinition/Bjorn) :
+La boucle [`epaper_push.py`](scripts/epaper_push.py) tire `/api/render.png` chaque
+seconde (pour suivre les animations) mais **ne touche la dalle que si l'image a
+changé**. À la façon de [Bjorn](https://github.com/infinition/Bjorn) :
 
-- **refresh partiel** à chaque changement (rapide, sans clignotement) sur les dalles monochromes ;
-- **refresh complet périodique** (tous les `FULL_REFRESH_EVERY` partiels ou toutes les `FULL_REFRESH_SECONDS`) pour effacer le ghosting ;
-- les dalles 3 couleurs (N/B/rouge) retombent sur le refresh complet.
+- **refresh partiel** à chaque changement (rapide, sans clignotement) ;
+- **refresh complet périodique** (tous les `FULL_REFRESH_EVERY` partiels ou toutes les `FULL_REFRESH_SECONDS`) pour effacer le ghosting.
 
 Réglages (variables d'environnement, dans [`epaper-push.service`](scripts/epaper-push.service)) :
 
 | Variable | Défaut | Rôle |
 |---|---|---|
 | `EPD_MODEL` | `epd2in13_V4` | module `waveshare_epd` de ta dalle |
-| `POLL_SECONDS` | `5` | intervalle de vérification (n'écrit que si l'image a changé) |
-| `FULL_REFRESH_EVERY` | `20` | refresh complet tous les N partiels (anti-ghosting) |
-| `FULL_REFRESH_SECONDS` | `1800` | refresh complet au moins toutes les X s |
+| `POLL_SECONDS` | `1` | intervalle de tirage — anime à 1 image/s (n'écrit que si l'image a changé) |
+| `FULL_REFRESH_EVERY` | `900` | refresh complet tous les N partiels (garde-fou) |
+| `FULL_REFRESH_SECONDS` | `1800` | refresh complet au moins toutes les X s (anti-ghosting) |
 | `EPAPER_THRESHOLD` | `160` | seuil de binarisation 0-255 (sous le seuil → noir) |
 | `REQUEST_TIMEOUT` | `20` | timeout (s) du fetch du PNG |
-| `RENDER_URL` | `http://localhost:8787/api/render.png?palette=bw` | URL du PNG |
+| `RENDER_URL` | `http://localhost:8787/api/render.png` | URL du PNG |
 
 > Le rendu est généré **sans anti-aliasing** : l'onglet **e-paper** du dashboard
 > montre exactement ce que reçoit la dalle. Dalle montée à l'envers ? Coche
