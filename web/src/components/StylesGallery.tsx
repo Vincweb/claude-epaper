@@ -8,20 +8,23 @@ import {
   type SpriteVariant,
 } from '../api';
 
-/** Descriptions & déclencheurs (informative, les visuels viennent du serveur). */
-const POSE_DESC: Record<string, { desc: string; auto?: string }> = {
-  neutral: { desc: 'pose par défaut', auto: 'rotation' },
-  working: { desc: 'code / skateboard', auto: 'rotation' },
-  coffee: { desc: 'le matin', auto: 'matin' },
-  content: { desc: 'tout roule', auto: 'rotation' },
-  magic: { desc: 'un peu de magie', auto: 'rotation' },
-  kiss: { desc: 'plein d’amour', auto: 'rotation' },
-  sunny: { desc: 'lunettes + soleil', auto: 'rotation' },
-  rainy: { desc: 'parapluie' },
-  sleep: { desc: 'si inactif ou la nuit', auto: 'auto' },
-  birthday: { desc: 'le jour J (config)', auto: 'auto' },
-  ball: { desc: 'occasionnel' },
-  dizzy: { desc: 'fatigué' },
+/** Descriptions & déclencheurs (informative ; les visuels viennent du serveur). */
+const POSE_DESC: Record<string, string> = {
+  neutral: 'pose par défaut',
+  working: 'code / skateboard',
+  coffee: 'le matin',
+  content: 'tout roule',
+  magic: 'un peu de magie',
+  kiss: 'plein d’amour',
+  sunny: 'lunettes + soleil',
+  rainy: 'sous la pluie',
+  ball: 'football',
+  dizzy: 'fatigué / étourdi',
+  sleep: 'la nuit ou après inactivité',
+  birthday: 'le jour J (date en config)',
+  alert: 'jauge au 1ᵉʳ seuil',
+  worried: 'jauge au 2ᵉ seuil',
+  panic: 'jauge au maximum',
 };
 
 const VARIANT_INFO: Record<SpriteVariant, { label: string; hint: string; frame: string }> = {
@@ -49,10 +52,10 @@ function PoseCard({
   onChanged: () => void;
 }) {
   const info = pose[variant];
-  const meta = POSE_DESC[pose.key] ?? { desc: '' };
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const ext = info.animated ? 'gif' : 'png';
 
   const onUpload = async (file: File | undefined) => {
     if (!file) return;
@@ -91,11 +94,8 @@ function PoseCard({
       </div>
       <div className="mt-2 text-center">
         <div className="text-sm font-semibold">{pose.title}</div>
-        <div className="text-xs text-white/45">{meta.desc}</div>
+        <div className="text-xs text-white/45">{POSE_DESC[pose.key] ?? ''}</div>
         <div className="mt-1 flex flex-wrap items-center justify-center gap-1">
-          {meta.auto && (
-            <span className="rounded-full bg-white/10 px-2 text-[10px] text-white/50">{meta.auto}</span>
-          )}
           <span className="rounded-full bg-white/10 px-2 text-[10px] text-white/50">
             {info.animated ? 'GIF animé' : 'PNG'}
           </span>
@@ -104,7 +104,7 @@ function PoseCard({
           )}
         </div>
       </div>
-      <div className="mt-2 flex items-center gap-2">
+      <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
         <input
           ref={fileInput}
           type="file"
@@ -119,6 +119,13 @@ function PoseCard({
         >
           Remplacer…
         </button>
+        <a
+          href={poseAssetUrl(variant, pose.key, bump)}
+          download={`${pose.key}-${variant}.${ext}`}
+          className="rounded-lg bg-white/10 px-3 py-1 text-xs hover:bg-white/20"
+        >
+          Télécharger
+        </a>
         {info.custom && (
           <button
             onClick={() => void onReset()}
@@ -134,8 +141,28 @@ function PoseCard({
   );
 }
 
-/** Galerie des poses : gestion des visuels e-paper (N&B) et web (couleur).
- * Chaque pose est un fichier PNG (statique) ou GIF (animé) remplaçable ici. */
+function PoseGrid({
+  poses,
+  variant,
+  bump,
+  onChanged,
+}: {
+  poses: PoseInfo[];
+  variant: SpriteVariant;
+  bump: number;
+  onChanged: () => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {poses.map((p) => (
+        <PoseCard key={`${variant}-${p.key}`} pose={p} variant={variant} bump={bump} onChanged={onChanged} />
+      ))}
+    </div>
+  );
+}
+
+/** Galerie des poses : visuels e-paper (N&B) et web (couleur), en deux groupes
+ * (rotation / spéciales). Chaque pose = un PNG (fixe) ou GIF (animé) remplaçable. */
 export function StylesGallery() {
   const [poses, setPoses] = useState<PoseInfo[]>([]);
   const [variant, setVariant] = useState<SpriteVariant>('epaper');
@@ -147,6 +174,9 @@ export function StylesGallery() {
   }, []);
 
   useEffect(() => reload(), [reload]);
+
+  const rotation = poses.filter((p) => !p.special);
+  const special = poses.filter((p) => p.special);
 
   return (
     <div className="w-full">
@@ -169,13 +199,18 @@ export function StylesGallery() {
           ))}
         </div>
       </div>
-      <p className="mb-4 text-center text-xs text-white/40">{VARIANT_INFO[variant].hint}</p>
+      <p className="mb-5 text-center text-xs text-white/40">{VARIANT_INFO[variant].hint}</p>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {poses.map((p) => (
-          <PoseCard key={`${variant}-${p.key}`} pose={p} variant={variant} bump={bump} onChanged={reload} />
-        ))}
-      </div>
+      <h3 className="mb-1 text-sm font-semibold text-white/80">En rotation</h3>
+      <p className="mb-3 text-xs text-white/40">Choisies au fil de la journée (et via le bouton 🎲).</p>
+      <PoseGrid poses={rotation} variant={variant} bump={bump} onChanged={reload} />
+
+      <h3 className="mb-1 mt-8 text-sm font-semibold text-white/80">Spéciales</h3>
+      <p className="mb-3 text-xs text-white/40">
+        Déclenchées par un état : niveau des jauges (sous pression → stressé → cramé), nuit/inactivité
+        (dodo) ou anniversaire.
+      </p>
+      <PoseGrid poses={special} variant={variant} bump={bump} onChanged={reload} />
     </div>
   );
 }

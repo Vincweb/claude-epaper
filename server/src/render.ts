@@ -379,7 +379,7 @@ function gatherData(): PanelData {
 /** Statut : « online » avec point qui CLIGNOTE (1 s plein / 1 s absent) ;
  * « offline » avec cercle vide, statique. Centré sur cx. */
 function statusSvg(cx: number, y: number, online: boolean, tick: number, fs = 9): string {
-  const label = online ? 'online' : 'offline';
+  const label = online ? 'Online' : 'Offline';
   const r = fs * 0.42;
   const textCx = cx + r; // décale le texte pour loger le point à sa gauche
   const dotCx = textCx - (label.length * fs * 0.62) / 2 - r - 1;
@@ -433,15 +433,15 @@ export function buildHorizontal(d: PanelData, rotate: 0 | 180): string {
 export function buildVertical(d: PanelData, rotate: 0 | 180): string {
   const W = 122, H = 250, cx = W / 2, x = 8, w = W - 2 * x;
   const inner = `
-  ${statusSvg(cx, 12, d.online, d.tick)}
+  ${statusSvg(cx, 12, d.online, d.tick, 11)}
   ${clawdSquare(d.pose, 2, 16, 118, d.tick)}
-  <text x="${cx}" y="146" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="10" fill="${INK}">Nv.${d.level} · ${d.age}</text>
-  <rect x="${x}" y="151" width="${w}" height="2" fill="${INK}"/>
-  ${barRow(x, 164, w, '5 H', d.five, d.fiveReset)}
-  ${barRow(x, 196, w, '7 J', d.seven, d.sevenReset)}
-  <rect x="${x}" y="219" width="${w}" height="2" fill="${INK}"/>
-  ${statMini(x, 226, 'REP', d.repu)}${statMini(cx + 4, 226, 'ENE', 100 - d.five)}
-  ${statMini(x, 239, 'JOI', d.joie)}${statMini(cx + 4, 239, 'FOR', 100 - d.seven)}`;
+  <text x="${cx}" y="146" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="11" fill="${INK}">Nv.${d.level} · ${d.age}</text>
+  <rect x="${x}" y="150" width="${w}" height="2" fill="${INK}"/>
+  ${barRow(x, 166, w, '5 H', d.five, d.fiveReset, true)}
+  ${barRow(x, 200, w, '7 J', d.seven, d.sevenReset, true)}
+  <rect x="${x}" y="224" width="${w}" height="2" fill="${INK}"/>
+  ${statMini(x, 228, 'REP', d.repu)}${statMini(cx + 4, 228, 'ENE', 100 - d.five)}
+  ${statMini(x, 240, 'JOI', d.joie)}${statMini(cx + 4, 240, 'FOR', 100 - d.seven)}`;
   return svgDoc(W, H, inner, rotate, 2);
 }
 

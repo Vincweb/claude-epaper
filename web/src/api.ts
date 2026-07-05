@@ -39,6 +39,8 @@ export interface PoseAssetInfo {
 export interface PoseInfo {
   key: string;
   title: string;
+  /** Pose contextuelle (déclenchée par un état) plutôt qu'en rotation. */
+  special: boolean;
   epaper: PoseAssetInfo;
   web: PoseAssetInfo;
 }
