@@ -17,7 +17,7 @@ import {
   savePoseAsset,
   type SpriteVariant,
 } from '../render.js';
-import { ALL_POSES } from '../mascot.js';
+import { ALL_POSES, SPECIAL_POSES } from '../mascot.js';
 import {
   authenticationOptions,
   clearSession,
@@ -152,10 +152,12 @@ function parsePoseParams(variant: string, key: string): { variant: SpriteVariant
 
 /** Liste des poses + état de leurs fichiers (statique/animé, défaut/personnalisé). */
 apiRouter.get('/poses', requireAuth, (_req, res) => {
+  const specialKeys = new Set(SPECIAL_POSES.map((p) => p.key));
   res.json({
     poses: ALL_POSES.map((p) => ({
       key: p.key,
       title: p.title,
+      special: specialKeys.has(p.key),
       epaper: poseAssetInfo('epaper', p.key),
       web: poseAssetInfo('web', p.key),
     })),

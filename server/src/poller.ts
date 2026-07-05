@@ -44,8 +44,9 @@ export class UsagePoller extends EventEmitter {
   private recompute(): void {
     const cfg = loadConfig();
     const now = new Date();
-    // Un contexte fort (anniversaire / nuit / inactivité) reprend la main sur le choix manuel.
-    const forced = forcedPose({ now, config: cfg, lastActivityAt: this.state.lastActivityAt });
+    // Un contexte fort (anniversaire / stress / nuit / inactivité) reprend la main sur le choix manuel.
+    const snapshot = this.state.snapshot;
+    const forced = forcedPose({ now, config: cfg, lastActivityAt: this.state.lastActivityAt, snapshot });
     const manualValid = this.manualPose && Date.now() < this.manualUntil;
     let pose: Pose;
     let manual = false;
@@ -56,7 +57,7 @@ export class UsagePoller extends EventEmitter {
       manual = true;
     } else {
       this.manualPose = null;
-      pose = selectPose({ now, config: cfg, lastActivityAt: this.state.lastActivityAt });
+      pose = selectPose({ now, config: cfg, lastActivityAt: this.state.lastActivityAt, snapshot });
     }
     const { level, label } = levelInfo(cfg.bornAt, this.state.usageXp);
     this.state.pose = pose;

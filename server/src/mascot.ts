@@ -35,22 +35,28 @@ const RAINY: Pose = { key: 'rainy', title: 'Sous la pluie', eyes: 'square', over
 const KISS: Pose = { key: 'kiss', title: 'Bisou', eyes: 'wink', mouth: 'kiss', accessory: 'heart' };
 const BALL: Pose = { key: 'ball', title: 'Football', eyes: 'happy', accessory: 'ball' };
 const DIZZY: Pose = { key: 'dizzy', title: 'Fatigué', eyes: 'cross' };
+// Poses contextuelles (déclenchées par un état, jamais par la rotation).
 const SLEEP: Pose = { key: 'sleep', title: 'Dodo', eyes: 'sleep', overhead: 'zzz' };
 const BIRTHDAY: Pose = { key: 'birthday', title: 'Joyeux anniversaire !', eyes: 'happy', overhead: 'sparkle-hat' };
+// Poses de stress selon la jauge la plus contrainte (seuils de config).
+const ALERT: Pose = { key: 'alert', title: 'Sous pression', eyes: 'wide' };
+const WORRIED: Pose = { key: 'worried', title: 'Stressé', eyes: 'wide', mouth: 'open' };
+const PANIC: Pose = { key: 'panic', title: 'Cramé', eyes: 'cross', mouth: 'open' };
 
 const MORNING_POOL: Pose[] = [COFFEE, WORKING, NEUTRAL, CONTENT];
 const DAY_POOL: Pose[] = [NEUTRAL, WORKING, CONTENT, MAGIC, SUNNY, KISS];
 
 // Poses choisissables manuellement (bouton "changer la mascotte") : on exclut
-// les poses purement contextuelles (anniversaire, dodo).
+// les poses contextuelles (anniversaire, dodo, stress).
 export const SHUFFLE_POOL: Pose[] = [
   NEUTRAL, WORKING, CONTENT, MAGIC, COFFEE, SUNNY, RAINY, KISS, BALL, DIZZY,
 ];
 
-/** Toutes les poses (y compris contextuelles) — sert à générer les sprites pixel art. */
-export const ALL_POSES: Pose[] = [
-  NEUTRAL, WORKING, CONTENT, MAGIC, COFFEE, SUNNY, RAINY, KISS, BALL, DIZZY, SLEEP, BIRTHDAY,
-];
+/** Poses spéciales (déclenchées par un état, pas la rotation) — pour la galerie. */
+export const SPECIAL_POSES: Pose[] = [ALERT, WORRIED, PANIC, SLEEP, BIRTHDAY];
+
+/** Toutes les poses (rotation + spéciales) — sert à générer les sprites pixel art. */
+export const ALL_POSES: Pose[] = [...SHUFFLE_POOL, ...SPECIAL_POSES];
 
 export function poseByKey(key: string): Pose | undefined {
   return SHUFFLE_POOL.find((p) => p.key === key);
@@ -62,19 +68,27 @@ export function birthdayKey(birthday: string): string | null {
   return `${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
 }
 
-/** Un contexte force-t-il une pose (anniversaire / dodo) ? Sinon rotation libre. */
+/** Un contexte force-t-il une pose ? Ordre : anniversaire → cramé (jauge au max)
+ * → dodo (nuit/inactif) → stressé → sous pression. Sinon rotation libre. */
 export function forcedPose(opts: {
   now: Date;
-  config: Pick<AppConfig, 'birthday' | 'inactivityMinutes'>;
+  config: Pick<AppConfig, 'birthday' | 'inactivityMinutes' | 'thresholds'>;
   lastActivityAt: string | null;
+  snapshot?: UsageSnapshot | null;
 }): Pose | null {
-  const { now, config, lastActivityAt } = opts;
+  const { now, config, lastActivityAt, snapshot } = opts;
   const hour = now.getHours();
   const today = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   if (config.birthday && birthdayKey(config.birthday) === today) return BIRTHDAY;
+  // Jauge la plus contrainte (comme l'humeur globale du web).
+  const worst = snapshot ? Math.max(snapshot.fiveHour.utilization, snapshot.sevenDay.utilization) : 0;
+  const t = config.thresholds;
+  if (worst >= t.panic) return PANIC;
   const inactiveMs = lastActivityAt ? now.getTime() - new Date(lastActivityAt).getTime() : 0;
   const isNight = hour >= 22 || hour < 6;
   if (isNight || inactiveMs > Math.max(1, config.inactivityMinutes) * 60_000) return SLEEP;
+  if (worst >= t.worried) return WORRIED;
+  if (worst >= t.alert) return ALERT;
   return null;
 }
 
@@ -82,6 +96,7 @@ export function selectPose(opts: {
   now: Date;
   config: AppConfig;
   lastActivityAt: string | null;
+  snapshot?: UsageSnapshot | null;
 }): Pose {
   const forced = forcedPose(opts);
   if (forced) return forced;
