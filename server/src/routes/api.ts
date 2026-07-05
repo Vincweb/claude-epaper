@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +8,16 @@ import QRCode from 'qrcode';
 import { poller } from '../poller.js';
 import { loadConfig, saveConfig } from '../config.js';
 import { importFromSource } from '../credentials.js';
-import { renderEpaperPng } from '../render.js';
+import {
+  deletePoseAsset,
+  normalizeLayout,
+  poseAssetInfo,
+  readPoseAsset,
+  renderEpaperPng,
+  savePoseAsset,
+  type SpriteVariant,
+} from '../render.js';
+import { ALL_POSES } from '../mascot.js';
 import {
   authenticationOptions,
   clearSession,
@@ -118,20 +127,87 @@ apiRouter.post('/auth/logout', (_req, res) => {
 
 /* ------------------------------ rendu e-paper ------------------------------ */
 
-/** Aperçu / sortie physique : le PNG exact envoyé à l'e-paper. */
+/** Aperçu / sortie physique : le PNG exact envoyé à l'e-paper (toujours N&B). */
 apiRouter.get('/render.png', requireAuth, (req, res) => {
   try {
-    const layout = req.query.layout === 'full' || req.query.layout === 'compact' ? req.query.layout : undefined;
-    const palette = req.query.palette === 'bw' || req.query.palette === 'bwr' ? req.query.palette : undefined;
+    const layout = normalizeLayout(req.query.layout);
     const scale = req.query.scale ? Math.min(6, Math.max(1, Number(req.query.scale))) : undefined;
     const rotate = req.query.rotate === '180' ? 180 : req.query.rotate === '0' ? 0 : undefined;
-    const png = renderEpaperPng({ layout, palette, scale, rotate });
+    const png = renderEpaperPng({ layout, scale, rotate });
     res.set('Content-Type', 'image/png');
     res.set('Cache-Control', 'no-store');
     res.send(png);
   } catch (e) {
     res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
   }
+});
+
+/* ------------------------------ sprites poses ------------------------------ */
+
+function parsePoseParams(variant: string, key: string): { variant: SpriteVariant; pose: (typeof ALL_POSES)[number] } | null {
+  if (variant !== 'epaper' && variant !== 'web') return null;
+  const pose = ALL_POSES.find((p) => p.key === key);
+  return pose ? { variant, pose } : null;
+}
+
+/** Liste des poses + état de leurs fichiers (statique/animé, défaut/personnalisé). */
+apiRouter.get('/poses', requireAuth, (_req, res) => {
+  res.json({
+    poses: ALL_POSES.map((p) => ({
+      key: p.key,
+      title: p.title,
+      epaper: poseAssetInfo('epaper', p.key),
+      web: poseAssetInfo('web', p.key),
+    })),
+  });
+});
+
+/** Fichier d'une pose (PNG ou GIF). Généré du vectoriel si aucun fichier. */
+apiRouter.get('/poses/:variant/:key', requireAuth, (req, res) => {
+  const parsed = parsePoseParams(req.params.variant, req.params.key);
+  if (!parsed) {
+    res.status(404).json({ error: 'pose inconnue' });
+    return;
+  }
+  try {
+    const { buf, type } = readPoseAsset(parsed.variant, parsed.pose);
+    res.set('Content-Type', type);
+    res.set('Cache-Control', 'no-store');
+    res.send(buf);
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+/** Remplace le visuel d'une pose (upload PNG/GIF, corps brut). */
+apiRouter.put(
+  '/poses/:variant/:key',
+  requireAuth,
+  express.raw({ type: () => true, limit: '4mb' }),
+  (req, res) => {
+    const parsed = parsePoseParams(req.params.variant, req.params.key);
+    if (!parsed) {
+      res.status(404).json({ error: 'pose inconnue' });
+      return;
+    }
+    try {
+      const info = savePoseAsset(parsed.variant, parsed.pose.key, req.body as Buffer);
+      res.json({ ok: true, ...info });
+    } catch (e) {
+      res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  },
+);
+
+/** Supprime la personnalisation (retour au visuel par défaut). */
+apiRouter.delete('/poses/:variant/:key', requireAuth, (req, res) => {
+  const parsed = parsePoseParams(req.params.variant, req.params.key);
+  if (!parsed) {
+    res.status(404).json({ error: 'pose inconnue' });
+    return;
+  }
+  deletePoseAsset(parsed.variant, parsed.pose.key);
+  res.json({ ok: true });
 });
 
 /* -------------------------------- données --------------------------------- */

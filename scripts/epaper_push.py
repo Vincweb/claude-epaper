@@ -12,11 +12,15 @@ Stratégie inspirée de Bjorn :
 Les dalles 3 couleurs (noir/blanc/rouge) ne gèrent pas le partiel : on retombe
 automatiquement sur le refresh complet.
 
+Le serveur anime le rendu (point online clignotant, poses GIF à 1 image/s) :
+la boucle tire donc à cadence 1 s par défaut et pousse en refresh partiel ;
+le md5 évite de toucher la dalle quand l'image n'a pas bougé.
+
 Config via variables d'environnement (toutes optionnelles) :
-  RENDER_URL            URL du PNG            (def. http://localhost:8787/api/render.png?palette=bw)
+  RENDER_URL            URL du PNG            (def. http://localhost:8787/api/render.png)
   EPD_MODEL             module waveshare_epd  (def. epd2in13_V4)
-  POLL_SECONDS          intervalle de tirage  (def. 5)
-  FULL_REFRESH_EVERY    refresh complet tous les N partiels  (def. 20)
+  POLL_SECONDS          intervalle de tirage  (def. 1 — anime à 1 img/s)
+  FULL_REFRESH_EVERY    refresh complet tous les N partiels  (def. 900)
   FULL_REFRESH_SECONDS  refresh complet au moins tous les X s (def. 1800)
   EPAPER_THRESHOLD      seuil de binarisation 0-255          (def. 160)
   REQUEST_TIMEOUT       timeout du fetch en s                (def. 20)
@@ -35,14 +39,14 @@ import time
 import requests
 from PIL import Image
 
-# palette=bw : line-art noir & blanc (pas la version couleur du crabe qui
-# devient une bouillie une fois convertie en 1-bit).
-RENDER_URL = os.environ.get(
-    "RENDER_URL", "http://localhost:8787/api/render.png?palette=bw"
-)
+# Le rendu serveur est déjà en noir & blanc (dalle unique 2,13" N&B).
+RENDER_URL = os.environ.get("RENDER_URL", "http://localhost:8787/api/render.png")
 EPD_MODEL = os.environ.get("EPD_MODEL", "epd2in13_V4")
-POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "5"))
-FULL_REFRESH_EVERY = int(os.environ.get("FULL_REFRESH_EVERY", "20"))
+# 1 s : suit les animations du serveur (point online, poses GIF).
+POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "1"))
+# À 1 img/s, l'anti-ghosting temporel (FULL_REFRESH_SECONDS) fait foi ; le
+# compteur de partiels reste un garde-fou haut.
+FULL_REFRESH_EVERY = int(os.environ.get("FULL_REFRESH_EVERY", "900"))
 FULL_REFRESH_SECONDS = int(os.environ.get("FULL_REFRESH_SECONDS", "1800"))
 # Le 1er rendu peut être lent au démarrage (Pi Zero) → timeout large.
 REQUEST_TIMEOUT = int(os.environ.get("REQUEST_TIMEOUT", "20"))

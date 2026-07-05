@@ -11,7 +11,7 @@ WorkingDirectory=/home/pi/claude-epaper
 # Module waveshare_epd : chemin de la lib officielle clonée (install native).
 Environment=PYTHONPATH=/home/pi/e-Paper/RaspberryPi_JetsonNano/python/lib
 # Variables : soit ici en clair, soit via EnvironmentFile (décommenter).
-Environment=RENDER_URL=http://localhost:8787/api/render.png?palette=bw
+Environment=RENDER_URL=http://localhost:8787/api/render.png
 Environment=EPD_MODEL=epd2in13_V4
 Environment=POLL_SECONDS=5
 Environment=FULL_REFRESH_EVERY=20

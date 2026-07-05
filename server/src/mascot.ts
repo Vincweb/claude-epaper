@@ -3,9 +3,9 @@ import type { AppConfig } from './config.js';
 
 // Logique de mascotte partagée (miroir de web/src/lib/usage.ts) pour le rendu e-paper.
 
-export type ClawdEyes = 'square' | 'wide' | 'happy' | 'sleep' | 'spiral' | 'wink' | 'shades';
+export type ClawdEyes = 'square' | 'wide' | 'happy' | 'sleep' | 'spiral' | 'wink' | 'shades' | 'cross';
 export type ClawdMouth = 'none' | 'line' | 'open' | 'kiss';
-export type ClawdAccessory = 'none' | 'laptop' | 'coffee' | 'ball' | 'wand' | 'heart';
+export type ClawdAccessory = 'none' | 'laptop' | 'coffee' | 'ball' | 'wand' | 'heart' | 'skateboard';
 export type ClawdOverhead = 'none' | 'party' | 'zzz' | 'sparkle-hat' | 'sun' | 'umbrella';
 
 export interface Pose {
@@ -26,7 +26,7 @@ export interface Stat {
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 
 const NEUTRAL: Pose = { key: 'neutral', title: 'Tranquille', eyes: 'square' };
-const WORKING: Pose = { key: 'working', title: 'Au travail', eyes: 'square', accessory: 'laptop' };
+const WORKING: Pose = { key: 'working', title: 'Au travail', eyes: 'square', accessory: 'skateboard' };
 const CONTENT: Pose = { key: 'content', title: 'Content', eyes: 'happy' };
 const MAGIC: Pose = { key: 'magic', title: 'Un peu de magie', eyes: 'square', accessory: 'wand' };
 const COFFEE: Pose = { key: 'coffee', title: 'Pause café', eyes: 'square', accessory: 'coffee' };
@@ -34,7 +34,7 @@ const SUNNY: Pose = { key: 'sunny', title: 'Au soleil', eyes: 'shades', overhead
 const RAINY: Pose = { key: 'rainy', title: 'Sous la pluie', eyes: 'square', overhead: 'umbrella' };
 const KISS: Pose = { key: 'kiss', title: 'Bisou', eyes: 'wink', mouth: 'kiss', accessory: 'heart' };
 const BALL: Pose = { key: 'ball', title: 'Football', eyes: 'happy', accessory: 'ball' };
-const DIZZY: Pose = { key: 'dizzy', title: 'Étourdi', eyes: 'spiral' };
+const DIZZY: Pose = { key: 'dizzy', title: 'Fatigué', eyes: 'cross' };
 const SLEEP: Pose = { key: 'sleep', title: 'Dodo', eyes: 'sleep', overhead: 'zzz' };
 const BIRTHDAY: Pose = { key: 'birthday', title: 'Joyeux anniversaire !', eyes: 'happy', overhead: 'sparkle-hat' };
 
@@ -45,6 +45,11 @@ const DAY_POOL: Pose[] = [NEUTRAL, WORKING, CONTENT, MAGIC, SUNNY, KISS];
 // les poses purement contextuelles (anniversaire, dodo).
 export const SHUFFLE_POOL: Pose[] = [
   NEUTRAL, WORKING, CONTENT, MAGIC, COFFEE, SUNNY, RAINY, KISS, BALL, DIZZY,
+];
+
+/** Toutes les poses (y compris contextuelles) — sert à générer les sprites pixel art. */
+export const ALL_POSES: Pose[] = [
+  NEUTRAL, WORKING, CONTENT, MAGIC, COFFEE, SUNNY, RAINY, KISS, BALL, DIZZY, SLEEP, BIRTHDAY,
 ];
 
 export function poseByKey(key: string): Pose | undefined {

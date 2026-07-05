@@ -9,10 +9,8 @@ export interface AppConfig {
   credentialsPath: string;
   /** Seuils (en %) qui colorent les jauges. */
   thresholds: { alert: number; worried: number; panic: number };
-  /** Palette de l'e-paper: noir/blanc ou noir/blanc/rouge. */
-  epaperPalette: 'bw' | 'bwr';
-  /** Mise en page e-paper: 'compact' (2.13" 250x122) ou 'full' (800x480). */
-  epaperLayout: 'compact' | 'full';
+  /** Orientation de la dalle 2,13" (250x122) : paysage ou portrait. */
+  epaperLayout: 'horizontal' | 'vertical';
   /** Rotation de l'affichage e-paper (dalle montée à l'envers). */
   epaperRotate: 0 | 180;
   /** Date d'anniversaire (YYYY-MM-DD ou MM-DD) pour la pose spéciale. */
@@ -34,8 +32,7 @@ const DEFAULTS: AppConfig = {
   pollIntervalMs: 60_000,
   credentialsPath: path.join(os.homedir(), '.claude', '.credentials.json'),
   thresholds: { alert: 50, worried: 75, panic: 90 },
-  epaperPalette: 'bwr',
-  epaperLayout: 'compact',
+  epaperLayout: 'horizontal',
   epaperRotate: 0,
   birthday: '',
   inactivityMinutes: 30,
@@ -52,6 +49,12 @@ export function getConfigDir(): string {
   return CONFIG_DIR;
 }
 
+/** Migre les anciennes valeurs de layout (compact/full/tall…) vers les 2 orientations. */
+function normalizeStoredLayout(v: unknown): AppConfig['epaperLayout'] {
+  if (v === 'vertical' || v === 'compact-tall' || v === 'tall') return 'vertical';
+  return 'horizontal';
+}
+
 export function loadConfig(): AppConfig {
   ensureConfigDir();
   try {
@@ -59,6 +62,7 @@ export function loadConfig(): AppConfig {
     return {
       ...DEFAULTS,
       ...raw,
+      epaperLayout: normalizeStoredLayout(raw.epaperLayout),
       thresholds: { ...DEFAULTS.thresholds, ...(raw.thresholds || {}) },
     };
   } catch {

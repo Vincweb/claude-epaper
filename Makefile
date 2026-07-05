@@ -72,7 +72,7 @@ run: build ## Lance l'app :8787 (+ boucle e-paper si /dev/spidev0.0 présent)
 		trap 'kill 0' INT TERM; \
 		PORT=$(PORT) NODE_ENV=production node server/dist/index.js & \
 		sleep 3; \
-		PYTHONPATH="$(EPD_LIB)" RENDER_URL="http://localhost:$(PORT)/api/render.png?palette=bw" python3 scripts/epaper_push.py & \
+		PYTHONPATH="$(EPD_LIB)" RENDER_URL="http://localhost:$(PORT)/api/render.png" python3 scripts/epaper_push.py & \
 		wait; \
 	else \
 		PORT=$(PORT) NODE_ENV=production node server/dist/index.js; \
