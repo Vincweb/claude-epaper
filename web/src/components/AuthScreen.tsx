@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { loginPasskey, recoverWithCode, registerPasskey } from '../api';
-import { ClaudeCharacter } from './ClaudeCharacter';
+import { loginPasskey, poseAssetUrl, recoverWithCode, registerPasskey } from '../api';
 
 type Props = { configured: boolean; onAuthenticated: () => void };
 
@@ -9,7 +8,13 @@ export function AuthScreen({ configured, onAuthenticated }: Props) {
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#1a1613] p-6 shadow-2xl">
         <div className="mb-4 flex flex-col items-center text-center">
-          <ClaudeCharacter size={112} frame="wide" eyes="happy" />
+          {/* Sprite fichier « content » (route publique : on n'est pas encore connecté). */}
+          <img
+            src={poseAssetUrl('web', 'content')}
+            alt="Clawd"
+            className="h-[112px] w-[112px] object-contain"
+            style={{ imageRendering: 'pixelated' }}
+          />
           <h1 className="text-xl font-semibold">Claude e-paper</h1>
           <p className="text-xs text-white/40">avec Clawd, ta mascotte</p>
         </div>

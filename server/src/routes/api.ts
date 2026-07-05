@@ -162,8 +162,10 @@ apiRouter.get('/poses', requireAuth, (_req, res) => {
   });
 });
 
-/** Fichier d'une pose (PNG ou GIF). Généré du vectoriel si aucun fichier. */
-apiRouter.get('/poses/:variant/:key', requireAuth, (req, res) => {
+/** Fichier d'une pose (PNG ou GIF). Généré du vectoriel si aucun fichier.
+ * Volontairement SANS auth : affiché sur l'écran de connexion (mascotte),
+ * aucune donnée sensible — liste, upload et suppression restent protégés. */
+apiRouter.get('/poses/:variant/:key', (req, res) => {
   const parsed = parsePoseParams(req.params.variant, req.params.key);
   if (!parsed) {
     res.status(404).json({ error: 'pose inconnue' });
