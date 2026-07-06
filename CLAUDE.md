@@ -41,7 +41,10 @@ affichent toujours la même chose (pose, niveau, stats).
   utilisateur uploadés dans `CONFIG_DIR/sprites/` (galerie Humeurs). Fallback :
   rendu vectoriel `clawdSvg`. `scripts/gen-sprites.mjs` régénère les défauts.
 - `mascot.ts` : logique de pose partagée, `selectPose`/`forcedPose`, pools,
-  `ALL_POSES`, stats, niveau.
+  `ALL_POSES`/`SHUFFLE_POOL`/`SPECIAL_POSES`, stats, niveau.
+- `poses.ts` : personnalisation persistée (`CONFIG_DIR/poses.json`) — renommage
+  (`titles`) et humeurs de rotation ajoutées (`custom`) ; `withTitle`,
+  `customPoses`, `rotationPoses`, `findPose` (base + perso).
 - `auth.ts` : WebAuthn + code de récup (fichier `CONFIG_DIR/auth.json`),
   middleware `requireAuth` (bypass **boucle locale** pour la boucle e-paper).
 - `routes/api.ts` : endpoints (voir ci-dessous).
@@ -53,9 +56,12 @@ affichent toujours la même chose (pose, niveau, stats).
 - `GET /render.png?layout=horizontal|vertical&rotate=&scale=` — PNG N&B de la
   dalle (auth ; boucle locale exemptée). L'aperçu web force `rotate=0` et se
   rafraîchit chaque seconde (animations). Anciennes valeurs de layout acceptées.
-- `GET /poses` (liste + flags animé/personnalisé) · `GET|PUT|DELETE
-  /poses/:variant/:key` (`variant` = `epaper`|`web`) — fichiers de poses ;
-  `PUT` reçoit le PNG/GIF en corps brut (galerie Humeurs).
+- `GET /poses` (liste + flags `special`/`userAdded`/animé/personnalisé) ·
+  `GET|PUT|DELETE /poses/:variant/:key` (`variant` = `epaper`|`web`) — fichiers de
+  poses ; `PUT` reçoit le PNG/GIF en corps brut (galerie Humeurs).
+- `POST /poses` `{title}` (ajoute une humeur de rotation) · `PUT /poses/:key`
+  `{title}` (renomme, base ou perso) · `DELETE /poses/:key` (supprime une perso).
+  Persistées dans `CONFIG_DIR/poses.json` (`server/src/poses.ts`).
 - `GET /usage/stream` (SSE), `GET /usage`, `GET /config`, `PUT /config`.
 - `POST /pose/shuffle` · `POST /pose/reset` — pose manuelle.
 - `POST /auth/register/{options,verify}` · `/auth/login/{options,verify}` ·

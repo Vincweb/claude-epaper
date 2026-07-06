@@ -17,7 +17,17 @@ import {
   savePoseAsset,
   type SpriteVariant,
 } from '../render.js';
-import { ALL_POSES, SPECIAL_POSES } from '../mascot.js';
+import { SPECIAL_POSES, type Pose } from '../mascot.js';
+import {
+  addCustomPose,
+  allPosesResolved,
+  customPoses,
+  deleteCustomPose,
+  disabledKeys,
+  findPose,
+  renamePose,
+  setPoseDisabled,
+} from '../poses.js';
 import {
   authenticationOptions,
   clearSession,
@@ -144,24 +154,74 @@ apiRouter.get('/render.png', requireAuth, (req, res) => {
 
 /* ------------------------------ sprites poses ------------------------------ */
 
-function parsePoseParams(variant: string, key: string): { variant: SpriteVariant; pose: (typeof ALL_POSES)[number] } | null {
+function parsePoseParams(variant: string, key: string): { variant: SpriteVariant; pose: Pose } | null {
   if (variant !== 'epaper' && variant !== 'web') return null;
-  const pose = ALL_POSES.find((p) => p.key === key);
+  const pose = findPose(key);
   return pose ? { variant, pose } : null;
 }
 
 /** Liste des poses + état de leurs fichiers (statique/animé, défaut/personnalisé). */
 apiRouter.get('/poses', requireAuth, (_req, res) => {
   const specialKeys = new Set(SPECIAL_POSES.map((p) => p.key));
+  const customKeys = new Set(customPoses().map((p) => p.key));
+  const disabled = new Set(disabledKeys());
   res.json({
-    poses: ALL_POSES.map((p) => ({
+    poses: allPosesResolved().map((p) => ({
       key: p.key,
       title: p.title,
       special: specialKeys.has(p.key),
+      userAdded: customKeys.has(p.key), // pose ajoutée par l'utilisateur (supprimable)
+      disabled: disabled.has(p.key), // pose de base retirée de la rotation
       epaper: poseAssetInfo('epaper', p.key),
       web: poseAssetInfo('web', p.key),
     })),
   });
+});
+
+/** Crée une humeur de rotation personnalisée (titre requis, visuel par défaut). */
+apiRouter.post('/poses', requireAuth, (req, res) => {
+  const title = typeof req.body?.title === 'string' ? req.body.title : '';
+  const pose = addCustomPose(title);
+  if (!pose) {
+    res.status(400).json({ error: 'titre invalide ou limite atteinte' });
+    return;
+  }
+  poller.refresh();
+  res.json({ ok: true, pose });
+});
+
+/** Renomme une humeur (`{title}`) ou la masque/réaffiche en rotation (`{disabled}`). */
+apiRouter.put('/poses/:key', requireAuth, (req, res) => {
+  const body = req.body ?? {};
+  if (typeof body.disabled === 'boolean') {
+    if (!setPoseDisabled(req.params.key, body.disabled)) {
+      res.status(400).json({ error: 'masquage impossible (rotation uniquement)' });
+      return;
+    }
+    poller.refresh();
+    res.json({ ok: true });
+    return;
+  }
+  const title = typeof body.title === 'string' ? body.title : '';
+  if (!renamePose(req.params.key, title)) {
+    res.status(400).json({ error: 'renommage impossible' });
+    return;
+  }
+  poller.refresh();
+  res.json({ ok: true });
+});
+
+/** Supprime une humeur personnalisée (et ses visuels). */
+apiRouter.delete('/poses/:key', requireAuth, (req, res) => {
+  const key = req.params.key;
+  if (!deleteCustomPose(key)) {
+    res.status(400).json({ error: 'humeur non supprimable' });
+    return;
+  }
+  deletePoseAsset('epaper', key);
+  deletePoseAsset('web', key);
+  poller.refresh();
+  res.json({ ok: true });
 });
 
 /** Fichier d'une pose (PNG ou GIF). Généré du vectoriel si aucun fichier.

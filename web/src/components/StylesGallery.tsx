@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  addRotationPose,
+  deletePose,
   listPoses,
   poseAssetUrl,
+  renamePose,
   resetPoseAsset,
+  setPoseEnabled,
   uploadPoseAsset,
   type PoseInfo,
   type SpriteVariant,
@@ -55,46 +59,90 @@ function PoseCard({
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(pose.title);
   const ext = info.animated ? 'gif' : 'png';
 
-  const onUpload = async (file: File | undefined) => {
-    if (!file) return;
+  useEffect(() => setName(pose.title), [pose.title]);
+
+  const run = async (fn: () => Promise<void>) => {
     setBusy(true);
     setError('');
     try {
-      await uploadPoseAsset(variant, pose.key, file);
+      await fn();
       onChanged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'échec de l’envoi');
+      setError(e instanceof Error ? e.message : 'échec');
     } finally {
       setBusy(false);
-      if (fileInput.current) fileInput.current.value = '';
     }
   };
 
-  const onReset = async () => {
-    setBusy(true);
-    try {
-      await resetPoseAsset(variant, pose.key);
-      onChanged();
-    } finally {
-      setBusy(false);
-    }
+  const onUpload = (file: File | undefined) =>
+    file &&
+    run(() => uploadPoseAsset(variant, pose.key, file)).finally(() => {
+      if (fileInput.current) fileInput.current.value = '';
+    });
+
+  const saveName = async () => {
+    const t = name.trim();
+    setEditing(false);
+    if (t && t !== pose.title) await run(() => renamePose(pose.key, t));
+    else setName(pose.title);
   };
+
+  const onDeletePose = () => {
+    if (window.confirm(`Supprimer l'humeur « ${pose.title} » ?`)) void run(() => deletePose(pose.key));
+  };
+
+  const canHide = !pose.special && !pose.userAdded; // pose de base en rotation
 
   return (
-    <div className="flex flex-col items-center rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-      <div className={`rounded-xl p-2 ${VARIANT_INFO[variant].frame}`}>
+    <div
+      className={`flex flex-col items-center rounded-2xl border p-3 ${
+        pose.disabled ? 'border-white/5 bg-white/[0.01]' : 'border-white/10 bg-white/[0.03]'
+      }`}
+    >
+      <div className={`relative rounded-xl p-2 ${VARIANT_INFO[variant].frame}`}>
         <img
           src={poseAssetUrl(variant, pose.key, bump)}
           alt={pose.title}
           className="h-[118px] w-[118px] object-contain"
-          style={{ imageRendering: 'pixelated' }}
+          style={{ imageRendering: 'pixelated', opacity: pose.disabled ? 0.35 : 1 }}
         />
+        {pose.disabled && (
+          <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-[11px] font-semibold uppercase tracking-wide text-black/70">
+            masquée
+          </span>
+        )}
       </div>
-      <div className="mt-2 text-center">
-        <div className="text-sm font-semibold">{pose.title}</div>
-        <div className="text-xs text-white/45">{POSE_DESC[pose.key] ?? ''}</div>
+      <div className="mt-2 w-full text-center">
+        {editing ? (
+          <input
+            value={name}
+            autoFocus
+            maxLength={40}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => void saveName()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void saveName();
+              if (e.key === 'Escape') {
+                setName(pose.title);
+                setEditing(false);
+              }
+            }}
+            className="w-full rounded bg-white/10 px-2 py-0.5 text-center text-sm font-semibold outline-none focus:bg-white/15"
+          />
+        ) : (
+          <button
+            onClick={() => setEditing(true)}
+            title="Renommer"
+            className="text-sm font-semibold hover:text-[#e0956f]"
+          >
+            {pose.title} <span className="text-white/30">✎</span>
+          </button>
+        )}
+        <div className="text-xs text-white/45">{POSE_DESC[pose.key] ?? 'humeur personnalisée'}</div>
         <div className="mt-1 flex flex-wrap items-center justify-center gap-1">
           <span className="rounded-full bg-white/10 px-2 text-[10px] text-white/50">
             {info.animated ? 'GIF animé' : 'PNG'}
@@ -128,11 +176,29 @@ function PoseCard({
         </a>
         {info.custom && (
           <button
-            onClick={() => void onReset()}
+            onClick={() => void run(() => resetPoseAsset(variant, pose.key))}
             disabled={busy}
             className="rounded-lg bg-white/10 px-3 py-1 text-xs hover:bg-white/20 disabled:opacity-50"
           >
             Réinitialiser
+          </button>
+        )}
+        {canHide && (
+          <button
+            onClick={() => void run(() => setPoseEnabled(pose.key, pose.disabled))}
+            disabled={busy}
+            className="rounded-lg bg-white/10 px-3 py-1 text-xs hover:bg-white/20 disabled:opacity-50"
+          >
+            {pose.disabled ? 'Remettre' : 'Retirer'}
+          </button>
+        )}
+        {pose.userAdded && (
+          <button
+            onClick={onDeletePose}
+            disabled={busy}
+            className="rounded-lg bg-red-500/15 px-3 py-1 text-xs text-red-300 hover:bg-red-500/25 disabled:opacity-50"
+          >
+            Supprimer
           </button>
         )}
       </div>
@@ -141,28 +207,55 @@ function PoseCard({
   );
 }
 
-function PoseGrid({
-  poses,
-  variant,
-  bump,
-  onChanged,
-}: {
-  poses: PoseInfo[];
-  variant: SpriteVariant;
-  bump: number;
-  onChanged: () => void;
-}) {
+function AddPoseCard({ onAdded }: { onAdded: () => void }) {
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const add = async () => {
+    const t = name.trim();
+    if (!t) return;
+    setBusy(true);
+    setError('');
+    try {
+      await addRotationPose(t);
+      setName('');
+      onAdded();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'échec');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {poses.map((p) => (
-        <PoseCard key={`${variant}-${p.key}`} pose={p} variant={variant} bump={bump} onChanged={onChanged} />
-      ))}
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-3 text-center">
+      <div className="text-2xl text-white/30">＋</div>
+      <div className="mb-2 text-sm font-semibold text-white/70">Nouvelle humeur</div>
+      <div className="text-xs text-white/40">Ajoutée à la rotation. Remplace ensuite son visuel.</div>
+      <input
+        value={name}
+        maxLength={40}
+        placeholder="Nom de l'humeur"
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && void add()}
+        className="mt-3 w-full rounded-lg bg-white/10 px-2 py-1 text-center text-sm outline-none focus:bg-white/15"
+      />
+      <button
+        onClick={() => void add()}
+        disabled={busy || !name.trim()}
+        className="mt-2 rounded-lg bg-[#d97757] px-4 py-1 text-xs font-medium text-black hover:bg-[#e0956f] disabled:opacity-40"
+      >
+        Ajouter
+      </button>
+      {error && <div className="mt-1 text-[10px] text-red-400">{error}</div>}
     </div>
   );
 }
 
 /** Galerie des poses : visuels e-paper (N&B) et web (couleur), en deux groupes
- * (rotation / spéciales). Chaque pose = un PNG (fixe) ou GIF (animé) remplaçable. */
+ * (rotation / spéciales). Chaque pose = un PNG (fixe) ou GIF (animé) remplaçable,
+ * renommable ; les poses de rotation peuvent être ajoutées/supprimées. */
 export function StylesGallery() {
   const [poses, setPoses] = useState<PoseInfo[]>([]);
   const [variant, setVariant] = useState<SpriteVariant>('epaper');
@@ -181,9 +274,9 @@ export function StylesGallery() {
   return (
     <div className="w-full">
       <p className="mb-3 text-center text-sm text-white/50">
-        Chaque pose est un fichier image remplaçable : PNG pour une pose fixe, GIF pour une pose
-        animée. Sur la dalle, un GIF est lu à 1 image/seconde avec une pause de 10 s entre les
-        boucles ; sur le web il s'anime nativement.
+        Chaque pose est un fichier image remplaçable (PNG fixe, GIF animé) et renommable. Sur la
+        dalle, un GIF est lu à 1 image/seconde avec une pause de 10 s entre les boucles ; sur le web
+        il s'anime nativement.
       </p>
 
       <div className="mb-1 flex justify-center">
@@ -202,15 +295,27 @@ export function StylesGallery() {
       <p className="mb-5 text-center text-xs text-white/40">{VARIANT_INFO[variant].hint}</p>
 
       <h3 className="mb-1 text-sm font-semibold text-white/80">En rotation</h3>
-      <p className="mb-3 text-xs text-white/40">Choisies au fil de la journée (et via le bouton 🎲).</p>
-      <PoseGrid poses={rotation} variant={variant} bump={bump} onChanged={reload} />
+      <p className="mb-3 text-xs text-white/40">
+        Choisies au fil de la journée (et via le bouton 🎲). Renommables ; « Retirer » exclut une
+        pose de base de la rotation (réversible), les personnalisées se suppriment.
+      </p>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {rotation.map((p) => (
+          <PoseCard key={`${variant}-${p.key}`} pose={p} variant={variant} bump={bump} onChanged={reload} />
+        ))}
+        <AddPoseCard onAdded={reload} />
+      </div>
 
       <h3 className="mb-1 mt-8 text-sm font-semibold text-white/80">Spéciales</h3>
       <p className="mb-3 text-xs text-white/40">
         Déclenchées par un état : niveau des jauges (sous pression → stressé → cramé), nuit/inactivité
-        (dodo) ou anniversaire.
+        (dodo) ou anniversaire. Renommables, mais pas supprimables.
       </p>
-      <PoseGrid poses={special} variant={variant} bump={bump} onChanged={reload} />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {special.map((p) => (
+          <PoseCard key={`${variant}-${p.key}`} pose={p} variant={variant} bump={bump} onChanged={reload} />
+        ))}
+      </div>
     </div>
   );
 }

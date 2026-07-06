@@ -6,11 +6,11 @@ import {
   deriveStats,
   forcedPose,
   levelInfo,
-  poseByKey,
   selectPose,
   SHUFFLE_POOL,
   type Pose,
 } from './mascot.js';
+import { customPoses, disabledKeys, findPose, rotationPoses, withTitle } from './poses.js';
 import type { PollerState, UsageSnapshot } from './types.js';
 
 /**
@@ -57,22 +57,31 @@ export class UsagePoller extends EventEmitter {
       manual = true;
     } else {
       this.manualPose = null;
-      pose = selectPose({ now, config: cfg, lastActivityAt: this.state.lastActivityAt, snapshot });
+      pose = selectPose({
+        now,
+        config: cfg,
+        lastActivityAt: this.state.lastActivityAt,
+        snapshot,
+        extraRotation: customPoses(),
+        disabled: disabledKeys(),
+      });
     }
     const { level, label } = levelInfo(cfg.bornAt, this.state.usageXp);
-    this.state.pose = pose;
+    // Applique le renommage utilisateur (les poses personnalisées ont déjà leur titre).
+    this.state.pose = withTitle(pose);
     this.state.poseManual = manual;
     this.state.stats = deriveStats(this.state.snapshot, this.state.lastActivityAt);
     this.state.level = level;
     this.state.ageLabel = label;
   }
 
-  /** Force une pose aléatoire (hors poses contextuelles), honorée un moment. */
+  /** Force une pose aléatoire (rotation : base + personnalisées), honorée un moment. */
   shufflePose(): Pose {
     const cfg = loadConfig();
+    const pool = rotationPoses();
     const current = this.state.pose.key;
-    const choices = SHUFFLE_POOL.filter((p) => p.key !== current);
-    const pick = choices[Math.floor(Math.random() * choices.length)] ?? SHUFFLE_POOL[0];
+    const choices = pool.filter((p) => p.key !== current);
+    const pick = choices[Math.floor(Math.random() * choices.length)] ?? pool[0] ?? SHUFFLE_POOL[0];
     this.manualPose = pick;
     // Honorée le temps d'une fenêtre de rotation (min 30 min), puis retour à l'auto.
     this.manualUntil = Date.now() + Math.max(30, cfg.rotateMinutes) * 60_000;
@@ -89,8 +98,14 @@ export class UsagePoller extends EventEmitter {
     this.emit('state', this.state);
   }
 
+  /** Recalcule et pousse l'état (ex. après renommage/ajout/suppression de pose). */
+  refresh(): void {
+    this.recompute();
+    this.emit('state', this.state);
+  }
+
   setPose(key: string): Pose | null {
-    const pose = poseByKey(key);
+    const pose = findPose(key);
     if (!pose) return null;
     const cfg = loadConfig();
     this.manualPose = pose;

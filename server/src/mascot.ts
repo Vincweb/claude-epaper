@@ -97,6 +97,10 @@ export function selectPose(opts: {
   config: AppConfig;
   lastActivityAt: string | null;
   snapshot?: UsageSnapshot | null;
+  /** Poses de rotation supplémentaires (personnalisées par l'utilisateur). */
+  extraRotation?: Pose[];
+  /** Poses de base masquées (retirées de la rotation). */
+  disabled?: string[];
 }): Pose {
   const forced = forcedPose(opts);
   if (forced) return forced;
@@ -104,8 +108,13 @@ export function selectPose(opts: {
   const hour = now.getHours();
   const rot = config.rotateMinutes > 0 ? config.rotateMinutes : 30;
   const bucket = Math.floor(now.getTime() / (rot * 60_000));
-  const pool = hour >= 6 && hour < 11 ? MORNING_POOL : DAY_POOL;
-  return pool[bucket % pool.length];
+  const base = hour >= 6 && hour < 11 ? MORNING_POOL : DAY_POOL;
+  let pool = opts.extraRotation?.length ? [...base, ...opts.extraRotation] : [...base];
+  if (opts.disabled?.length) {
+    const dis = new Set(opts.disabled);
+    pool = pool.filter((p) => !dis.has(p.key));
+  }
+  return pool.length ? pool[bucket % pool.length] : NEUTRAL; // jamais de pool vide
 }
 
 export function deriveStats(snap: UsageSnapshot | null, lastActivityAt: string | null): Stat[] {
