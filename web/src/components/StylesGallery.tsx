@@ -38,8 +38,8 @@ const VARIANT_INFO: Record<SpriteVariant, { label: string; hint: string; frame: 
     frame: 'bg-white',
   },
   web: {
-    label: 'Web (couleur)',
-    hint: 'Affiché sur le dashboard — PNG ou GIF 236×236, couleur, fond transparent.',
+    label: 'Web (couleur, HD)',
+    hint: 'Affiché sur le dashboard, lissé — PNG ou GIF couleur HD (≥ 480×480), fond transparent.',
     frame: 'bg-white/[0.04]',
   },
 };
@@ -91,30 +91,26 @@ function PoseCard({
     else setName(pose.title);
   };
 
-  const onDeletePose = () => {
-    if (window.confirm(`Supprimer l'humeur « ${pose.title} » ?`)) void run(() => deletePose(pose.key));
+  // « Supprimer » : réel pour une perso, masquage réversible pour une pose de base.
+  // Uniquement en rotation (les spéciales ne sont pas supprimables).
+  const removable = !pose.special;
+  const onRemove = () => {
+    if (pose.userAdded) {
+      if (window.confirm(`Supprimer l'humeur « ${pose.title} » ?`)) void run(() => deletePose(pose.key));
+    } else {
+      void run(() => setPoseEnabled(pose.key, false));
+    }
   };
 
-  const canHide = !pose.special && !pose.userAdded; // pose de base en rotation
-
   return (
-    <div
-      className={`flex flex-col items-center rounded-2xl border p-3 ${
-        pose.disabled ? 'border-white/5 bg-white/[0.01]' : 'border-white/10 bg-white/[0.03]'
-      }`}
-    >
-      <div className={`relative rounded-xl p-2 ${VARIANT_INFO[variant].frame}`}>
+    <div className="flex flex-col items-center rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+      <div className={`rounded-xl p-2 ${VARIANT_INFO[variant].frame}`}>
         <img
           src={poseAssetUrl(variant, pose.key, bump)}
           alt={pose.title}
           className="h-[118px] w-[118px] object-contain"
-          style={{ imageRendering: 'pixelated', opacity: pose.disabled ? 0.35 : 1 }}
+          style={variant === 'epaper' ? { imageRendering: 'pixelated' } : undefined}
         />
-        {pose.disabled && (
-          <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-[11px] font-semibold uppercase tracking-wide text-black/70">
-            masquée
-          </span>
-        )}
       </div>
       <div className="mt-2 w-full text-center">
         {editing ? (
@@ -183,18 +179,9 @@ function PoseCard({
             Réinitialiser
           </button>
         )}
-        {canHide && (
+        {removable && (
           <button
-            onClick={() => void run(() => setPoseEnabled(pose.key, pose.disabled))}
-            disabled={busy}
-            className="rounded-lg bg-white/10 px-3 py-1 text-xs hover:bg-white/20 disabled:opacity-50"
-          >
-            {pose.disabled ? 'Remettre' : 'Retirer'}
-          </button>
-        )}
-        {pose.userAdded && (
-          <button
-            onClick={onDeletePose}
+            onClick={onRemove}
             disabled={busy}
             className="rounded-lg bg-red-500/15 px-3 py-1 text-xs text-red-300 hover:bg-red-500/25 disabled:opacity-50"
           >
@@ -268,8 +255,13 @@ export function StylesGallery() {
 
   useEffect(() => reload(), [reload]);
 
-  const rotation = poses.filter((p) => !p.special);
+  const rotation = poses.filter((p) => !p.special && !p.disabled);
+  const hidden = poses.filter((p) => !p.special && p.disabled); // poses de base retirées
   const special = poses.filter((p) => p.special);
+
+  const restoreAll = () => {
+    void Promise.all(hidden.map((p) => setPoseEnabled(p.key, true))).then(reload);
+  };
 
   return (
     <div className="w-full">
@@ -294,11 +286,23 @@ export function StylesGallery() {
       </div>
       <p className="mb-5 text-center text-xs text-white/40">{VARIANT_INFO[variant].hint}</p>
 
-      <h3 className="mb-1 text-sm font-semibold text-white/80">En rotation</h3>
-      <p className="mb-3 text-xs text-white/40">
-        Choisies au fil de la journée (et via le bouton 🎲). Renommables ; « Retirer » exclut une
-        pose de base de la rotation (réversible), les personnalisées se suppriment.
-      </p>
+      <div className="mb-3 flex items-baseline justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold text-white/80">En rotation</h3>
+          <p className="text-xs text-white/40">
+            Choisies au fil de la journée (et via 🎲). Renommables, supprimables, extensibles.
+          </p>
+        </div>
+        {hidden.length > 0 && (
+          <button
+            onClick={restoreAll}
+            className="shrink-0 rounded-lg bg-white/10 px-3 py-1 text-xs hover:bg-white/20"
+            title="Réafficher les humeurs de base retirées"
+          >
+            ↺ Restaurer {hidden.length} retirée{hidden.length > 1 ? 's' : ''}
+          </button>
+        )}
+      </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {rotation.map((p) => (
           <PoseCard key={`${variant}-${p.key}`} pose={p} variant={variant} bump={bump} onChanged={reload} />

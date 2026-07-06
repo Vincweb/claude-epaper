@@ -23,8 +23,9 @@ const font = {
   monospaceFamily: 'Tiny5',
 };
 
-// Résolution native par variante : e-paper = taille d'affichage exacte (1:1).
-const VARIANTS = { epaper: { size: 118, mono: true }, web: { size: 236, mono: false } };
+// Résolution native par variante : e-paper = taille d'affichage exacte (1:1),
+// web = HD (affiché lissé sur le dashboard, indépendant de la dalle).
+const VARIANTS = { epaper: { size: 118, mono: true }, web: { size: 480, mono: false } };
 
 function rasterize(pose, { size, mono }) {
   const svg = clawdStandaloneSvg(pose, mono);

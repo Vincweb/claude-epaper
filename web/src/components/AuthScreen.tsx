@@ -8,12 +8,11 @@ export function AuthScreen({ configured, onAuthenticated }: Props) {
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#1a1613] p-6 shadow-2xl">
         <div className="mb-4 flex flex-col items-center text-center">
-          {/* Sprite fichier « content » (route publique : on n'est pas encore connecté). */}
+          {/* Sprite web « content » (route publique : on n'est pas encore connecté). */}
           <img
             src={poseAssetUrl('web', 'content')}
             alt="Clawd"
-            className="h-[112px] w-[112px] object-contain"
-            style={{ imageRendering: 'pixelated' }}
+            className="h-[120px] w-[120px] object-contain"
           />
           <h1 className="text-xl font-semibold">Claude e-paper</h1>
           <p className="text-xs text-white/40">avec Clawd, ta mascotte</p>

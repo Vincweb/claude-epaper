@@ -50,13 +50,12 @@ export function ScreenPage() {
   return (
     <>
       <div className="flex flex-col items-center">
-        {/* Sprite fichier (PNG/GIF) : même source que la galerie ; un GIF s'anime tout seul. */}
+        {/* Sprite web HD (PNG/GIF) : même source que la galerie ; un GIF s'anime tout seul. */}
         <img
           key={`${pose.key}-${pulseKey}`}
           src={poseAssetUrl('web', pose.key)}
           alt={pose.title}
-          className="cc-pop h-[220px] w-[220px] object-contain"
-          style={{ imageRendering: 'pixelated' }}
+          className="cc-pop h-[240px] w-[240px] object-contain"
         />
         <div className="mt-1 flex items-center gap-2">
           <span className="rounded-full bg-white/10 px-4 py-1 text-sm font-medium text-white/80">

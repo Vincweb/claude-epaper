@@ -284,7 +284,8 @@ export function readPoseAsset(
   }
   const mono = variant === 'epaper';
   const svg = clawdStandaloneSvg(pose, mono);
-  return { buf: rasterizeSvg(svg, mono ? 118 : 236, true), type: 'image/png' };
+  // e-paper = 118 (1:1 dalle) ; web = 480 (HD, affiché lissé sur le dashboard).
+  return { buf: rasterizeSvg(svg, mono ? 118 : 480, true), type: 'image/png' };
 }
 
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47]);

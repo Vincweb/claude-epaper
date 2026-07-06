@@ -37,8 +37,8 @@ affichent toujours la même chose (pose, niveau, stats).
   de 10 s frame 0 entre les boucles).
 - **Sprites de poses = fichiers** (source de vérité du dessin) :
   `server/sprites/{epaper,web}/<key>.png|.gif` (défauts embarqués, e-paper
-  118×118 N&B, web 236×236 couleur, affichés 1:1/pixelated) ; overrides
-  utilisateur uploadés dans `CONFIG_DIR/sprites/` (galerie Humeurs). Fallback :
+  118×118 N&B affiché 1:1/pixelated, web ≥480×480 couleur HD affiché lissé) ;
+  overrides utilisateur uploadés dans `CONFIG_DIR/sprites/` (galerie Humeurs). Fallback :
   rendu vectoriel `clawdSvg`. `scripts/gen-sprites.mjs` régénère les défauts.
 - `mascot.ts` : logique de pose partagée, `selectPose`/`forcedPose`, pools,
   `ALL_POSES`/`SHUFFLE_POOL`/`SPECIAL_POSES`, stats, niveau.
