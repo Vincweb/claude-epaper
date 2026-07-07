@@ -41,10 +41,8 @@ export interface PoseInfo {
   title: string;
   /** Pose contextuelle (déclenchée par un état) plutôt qu'en rotation. */
   special: boolean;
-  /** Pose ajoutée par l'utilisateur (renommable ET supprimable). */
+  /** Pose ajoutée par l'utilisateur (rotation : renommable ET supprimable). */
   userAdded: boolean;
-  /** Pose de base retirée de la rotation (masquée, réversible). */
-  disabled: boolean;
   epaper: PoseAssetInfo;
   web: PoseAssetInfo;
 }
@@ -77,16 +75,6 @@ export async function addRotationPose(title: string): Promise<void> {
 /** Supprime une humeur personnalisée (et ses visuels). */
 export async function deletePose(key: string): Promise<void> {
   await fetch(`/api/poses/${key}`, { method: 'DELETE' });
-}
-
-/** Masque (retire de la rotation) ou réaffiche une pose de base. */
-export async function setPoseEnabled(key: string, enabled: boolean): Promise<void> {
-  const r = await fetch(`/api/poses/${key}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ disabled: !enabled }),
-  });
-  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? 'toggle-failed');
 }
 
 export function poseAssetUrl(variant: SpriteVariant, key: string, bump = 0): string {

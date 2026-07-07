@@ -1,14 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getConfigDir } from './config.js';
-import { ALL_POSES, SHUFFLE_POOL, SPECIAL_POSES, type Pose } from './mascot.js';
+import { ALL_POSES, SPECIAL_POSES, type Pose } from './mascot.js';
 
 /**
  * Personnalisation des poses persistée dans CONFIG_DIR/poses.json :
- *  - `titles` : renommage d'une pose existante (base) OU personnalisée.
- *  - `custom` : nouvelles poses ajoutées par l'utilisateur (rotation uniquement).
- * Les poses de base restent définies dans mascot.ts (dessin vectoriel de secours) ;
- * ici on ne fait que renommer et étendre le pool de rotation.
+ *  - `titles` : renommage d'une pose (spéciale de base OU personnalisée).
+ *  - `custom` : humeurs ajoutées par l'utilisateur — elles CONSTITUENT la rotation
+ *    (aucune pose de rotation n'est codée en dur ; seules les spéciales le sont).
  */
 interface CustomPose {
   key: string;
@@ -17,8 +16,6 @@ interface CustomPose {
 interface UserPoses {
   titles: Record<string, string>;
   custom: CustomPose[];
-  /** Poses de base (rotation) masquées = retirées de la rotation, réversible. */
-  disabled: string[];
 }
 
 const MAX_TITLE = 40;
@@ -34,10 +31,9 @@ function load(): UserPoses {
     return {
       titles: raw.titles && typeof raw.titles === 'object' ? raw.titles : {},
       custom: Array.isArray(raw.custom) ? raw.custom.filter((c: CustomPose) => c?.key && c?.title) : [],
-      disabled: Array.isArray(raw.disabled) ? raw.disabled.filter((k: unknown) => typeof k === 'string') : [],
     };
   } catch {
-    return { titles: {}, custom: [], disabled: [] };
+    return { titles: {}, custom: [] };
   }
 }
 
@@ -64,35 +60,17 @@ export function findPose(key: string): Pose | undefined {
   return customPoses().find((p) => p.key === key);
 }
 
-/** Clés des poses de base masquées (retirées de la rotation). */
-export function disabledKeys(): string[] {
-  return load().disabled;
-}
-
-/** Pool de rotation ACTIF : poses de base non masquées + personnalisées. */
+/** Pool de rotation : uniquement les humeurs personnalisées. */
 export function rotationPoses(): Pose[] {
-  const dis = new Set(load().disabled);
-  return [...SHUFFLE_POOL.filter((p) => !dis.has(p.key)).map(withTitle), ...customPoses()];
+  return customPoses();
 }
 
-/** Toutes les poses (rotation même masquée + spéciales), titres résolus — galerie. */
+/** Toutes les poses (personnalisées + spéciales), titres résolus — galerie. */
 export function allPosesResolved(): Pose[] {
-  return [...SHUFFLE_POOL.map(withTitle), ...customPoses(), ...SPECIAL_POSES.map(withTitle)];
+  return [...customPoses(), ...SPECIAL_POSES.map(withTitle)];
 }
 
-/** Masque / réaffiche une pose de base en rotation (pas les spéciales ni perso). */
-export function setPoseDisabled(key: string, disabled: boolean): boolean {
-  if (!SHUFFLE_POOL.some((p) => p.key === key)) return false;
-  const u = load();
-  const has = u.disabled.includes(key);
-  if (disabled && !has) u.disabled.push(key);
-  else if (!disabled && has) u.disabled = u.disabled.filter((k) => k !== key);
-  else return true;
-  save(u);
-  return true;
-}
-
-/** Renomme une pose (base ou personnalisée). */
+/** Renomme une pose (spéciale de base ou personnalisée). */
 export function renamePose(key: string, title: string): boolean {
   const t = title.trim().slice(0, MAX_TITLE);
   if (!t) return false;
@@ -135,8 +113,4 @@ export function deleteCustomPose(key: string): boolean {
   delete u.titles[key];
   save(u);
   return true;
-}
-
-export function isCustomPose(key: string): boolean {
-  return load().custom.some((c) => c.key === key);
 }

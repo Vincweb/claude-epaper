@@ -25,16 +25,8 @@ export interface Stat {
 
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 
+// Pose par défaut / repli (spéciale) : affichée quand rien d'autre ne s'applique.
 const NEUTRAL: Pose = { key: 'neutral', title: 'Tranquille', eyes: 'square' };
-const WORKING: Pose = { key: 'working', title: 'Au travail', eyes: 'square', accessory: 'skateboard' };
-const CONTENT: Pose = { key: 'content', title: 'Content', eyes: 'happy' };
-const MAGIC: Pose = { key: 'magic', title: 'Un peu de magie', eyes: 'square', accessory: 'wand' };
-const COFFEE: Pose = { key: 'coffee', title: 'Pause café', eyes: 'square', accessory: 'coffee' };
-const SUNNY: Pose = { key: 'sunny', title: 'Au soleil', eyes: 'shades', overhead: 'sun' };
-const RAINY: Pose = { key: 'rainy', title: 'Sous la pluie', eyes: 'square', overhead: 'umbrella' };
-const KISS: Pose = { key: 'kiss', title: 'Bisou', eyes: 'wink', mouth: 'kiss', accessory: 'heart' };
-const BALL: Pose = { key: 'ball', title: 'Football', eyes: 'happy', accessory: 'ball' };
-const DIZZY: Pose = { key: 'dizzy', title: 'Fatigué', eyes: 'cross' };
 // Poses contextuelles (déclenchées par un état, jamais par la rotation).
 const SLEEP: Pose = { key: 'sleep', title: 'Dodo', eyes: 'sleep', overhead: 'zzz' };
 const BIRTHDAY: Pose = { key: 'birthday', title: 'Joyeux anniversaire !', eyes: 'happy', overhead: 'sparkle-hat' };
@@ -43,23 +35,21 @@ const ALERT: Pose = { key: 'alert', title: 'Sous pression', eyes: 'wide' };
 const WORRIED: Pose = { key: 'worried', title: 'Stressé', eyes: 'wide', mouth: 'open' };
 const PANIC: Pose = { key: 'panic', title: 'Cramé', eyes: 'cross', mouth: 'open' };
 
-const MORNING_POOL: Pose[] = [COFFEE, WORKING, NEUTRAL, CONTENT];
-const DAY_POOL: Pose[] = [NEUTRAL, WORKING, CONTENT, MAGIC, SUNNY, KISS];
+/** Pose de repli, affichée par défaut (rotation vide, aucune personnalisée). */
+export const DEFAULT_POSE: Pose = NEUTRAL;
 
-// Poses choisissables manuellement (bouton "changer la mascotte") : on exclut
-// les poses contextuelles (anniversaire, dodo, stress).
-export const SHUFFLE_POOL: Pose[] = [
-  NEUTRAL, WORKING, CONTENT, MAGIC, COFFEE, SUNNY, RAINY, KISS, BALL, DIZZY,
-];
+/** La rotation ne contient AUCUNE pose de base : elle est entièrement composée
+ * des humeurs personnalisées de l'utilisateur (cf. poses.ts). */
+export const SHUFFLE_POOL: Pose[] = [];
 
 /** Poses spéciales (déclenchées par un état, pas la rotation) — pour la galerie. */
-export const SPECIAL_POSES: Pose[] = [ALERT, WORRIED, PANIC, SLEEP, BIRTHDAY];
+export const SPECIAL_POSES: Pose[] = [NEUTRAL, ALERT, WORRIED, PANIC, SLEEP, BIRTHDAY];
 
-/** Toutes les poses (rotation + spéciales) — sert à générer les sprites pixel art. */
-export const ALL_POSES: Pose[] = [...SHUFFLE_POOL, ...SPECIAL_POSES];
+/** Toutes les poses de base (spéciales) — sert à générer les sprites pixel art. */
+export const ALL_POSES: Pose[] = [...SPECIAL_POSES];
 
 export function poseByKey(key: string): Pose | undefined {
-  return SHUFFLE_POOL.find((p) => p.key === key);
+  return ALL_POSES.find((p) => p.key === key);
 }
 
 export function birthdayKey(birthday: string): string | null {
@@ -97,24 +87,17 @@ export function selectPose(opts: {
   config: AppConfig;
   lastActivityAt: string | null;
   snapshot?: UsageSnapshot | null;
-  /** Poses de rotation supplémentaires (personnalisées par l'utilisateur). */
-  extraRotation?: Pose[];
-  /** Poses de base masquées (retirées de la rotation). */
-  disabled?: string[];
+  /** Poses de rotation (personnalisées par l'utilisateur) — seule source de rotation. */
+  rotation?: Pose[];
 }): Pose {
   const forced = forcedPose(opts);
   if (forced) return forced;
+  const pool = opts.rotation ?? [];
+  if (!pool.length) return DEFAULT_POSE; // rien de personnalisé → pose par défaut
   const { now, config } = opts;
-  const hour = now.getHours();
   const rot = config.rotateMinutes > 0 ? config.rotateMinutes : 30;
   const bucket = Math.floor(now.getTime() / (rot * 60_000));
-  const base = hour >= 6 && hour < 11 ? MORNING_POOL : DAY_POOL;
-  let pool = opts.extraRotation?.length ? [...base, ...opts.extraRotation] : [...base];
-  if (opts.disabled?.length) {
-    const dis = new Set(opts.disabled);
-    pool = pool.filter((p) => !dis.has(p.key));
-  }
-  return pool.length ? pool[bucket % pool.length] : NEUTRAL; // jamais de pool vide
+  return pool[bucket % pool.length];
 }
 
 export function deriveStats(snap: UsageSnapshot | null, lastActivityAt: string | null): Stat[] {

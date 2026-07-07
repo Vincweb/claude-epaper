@@ -4,13 +4,13 @@ import { fetchUsage } from './usage.js';
 import { loadConfig, saveConfig } from './config.js';
 import {
   deriveStats,
+  DEFAULT_POSE,
   forcedPose,
   levelInfo,
   selectPose,
-  SHUFFLE_POOL,
   type Pose,
 } from './mascot.js';
-import { customPoses, disabledKeys, findPose, rotationPoses, withTitle } from './poses.js';
+import { customPoses, findPose, rotationPoses, withTitle } from './poses.js';
 import type { PollerState, UsageSnapshot } from './types.js';
 
 /**
@@ -26,7 +26,7 @@ export class UsagePoller extends EventEmitter {
     lastFetchedAt: null,
     lastActivityAt: null,
     usageXp: loadConfig().usageXp,
-    pose: SHUFFLE_POOL[0],
+    pose: DEFAULT_POSE,
     stats: [],
     level: 1,
     ageLabel: '0 h',
@@ -62,8 +62,7 @@ export class UsagePoller extends EventEmitter {
         config: cfg,
         lastActivityAt: this.state.lastActivityAt,
         snapshot,
-        extraRotation: customPoses(),
-        disabled: disabledKeys(),
+        rotation: customPoses(),
       });
     }
     const { level, label } = levelInfo(cfg.bornAt, this.state.usageXp);
@@ -75,13 +74,13 @@ export class UsagePoller extends EventEmitter {
     this.state.ageLabel = label;
   }
 
-  /** Force une pose aléatoire (rotation : base + personnalisées), honorée un moment. */
+  /** Force une pose aléatoire parmi les humeurs personnalisées (rotation). */
   shufflePose(): Pose {
     const cfg = loadConfig();
     const pool = rotationPoses();
     const current = this.state.pose.key;
     const choices = pool.filter((p) => p.key !== current);
-    const pick = choices[Math.floor(Math.random() * choices.length)] ?? pool[0] ?? SHUFFLE_POOL[0];
+    const pick = choices[Math.floor(Math.random() * choices.length)] ?? pool[0] ?? DEFAULT_POSE;
     this.manualPose = pick;
     // Honorée le temps d'une fenêtre de rotation (min 30 min), puis retour à l'auto.
     this.manualUntil = Date.now() + Math.max(30, cfg.rotateMinutes) * 60_000;

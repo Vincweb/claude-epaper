@@ -6,7 +6,6 @@ import {
   poseAssetUrl,
   renamePose,
   resetPoseAsset,
-  setPoseEnabled,
   uploadPoseAsset,
   type PoseInfo,
   type SpriteVariant,
@@ -91,15 +90,9 @@ function PoseCard({
     else setName(pose.title);
   };
 
-  // « Supprimer » : réel pour une perso, masquage réversible pour une pose de base.
-  // Uniquement en rotation (les spéciales ne sont pas supprimables).
-  const removable = !pose.special;
+  // Seules les humeurs personnalisées (rotation) sont supprimables.
   const onRemove = () => {
-    if (pose.userAdded) {
-      if (window.confirm(`Supprimer l'humeur « ${pose.title} » ?`)) void run(() => deletePose(pose.key));
-    } else {
-      void run(() => setPoseEnabled(pose.key, false));
-    }
+    if (window.confirm(`Supprimer l'humeur « ${pose.title} » ?`)) void run(() => deletePose(pose.key));
   };
 
   return (
@@ -179,7 +172,7 @@ function PoseCard({
             Réinitialiser
           </button>
         )}
-        {removable && (
+        {pose.userAdded && (
           <button
             onClick={onRemove}
             disabled={busy}
@@ -255,13 +248,8 @@ export function StylesGallery() {
 
   useEffect(() => reload(), [reload]);
 
-  const rotation = poses.filter((p) => !p.special && !p.disabled);
-  const hidden = poses.filter((p) => !p.special && p.disabled); // poses de base retirées
+  const rotation = poses.filter((p) => !p.special);
   const special = poses.filter((p) => p.special);
-
-  const restoreAll = () => {
-    void Promise.all(hidden.map((p) => setPoseEnabled(p.key, true))).then(reload);
-  };
 
   return (
     <div className="w-full">
@@ -286,23 +274,11 @@ export function StylesGallery() {
       </div>
       <p className="mb-5 text-center text-xs text-white/40">{VARIANT_INFO[variant].hint}</p>
 
-      <div className="mb-3 flex items-baseline justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-semibold text-white/80">En rotation</h3>
-          <p className="text-xs text-white/40">
-            Choisies au fil de la journée (et via 🎲). Renommables, supprimables, extensibles.
-          </p>
-        </div>
-        {hidden.length > 0 && (
-          <button
-            onClick={restoreAll}
-            className="shrink-0 rounded-lg bg-white/10 px-3 py-1 text-xs hover:bg-white/20"
-            title="Réafficher les humeurs de base retirées"
-          >
-            ↺ Restaurer {hidden.length} retirée{hidden.length > 1 ? 's' : ''}
-          </button>
-        )}
-      </div>
+      <h3 className="mb-1 text-sm font-semibold text-white/80">En rotation</h3>
+      <p className="mb-3 text-xs text-white/40">
+        Tes humeurs à toi, choisies au fil de la journée (et via 🎲). Ajoute-les ici, renomme-les,
+        remplace leur visuel ou supprime-les. {rotation.length === 0 && 'Aucune pour l’instant — commence par en ajouter une.'}
+      </p>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {rotation.map((p) => (
           <PoseCard key={`${variant}-${p.key}`} pose={p} variant={variant} bump={bump} onChanged={reload} />
@@ -312,8 +288,9 @@ export function StylesGallery() {
 
       <h3 className="mb-1 mt-8 text-sm font-semibold text-white/80">Spéciales</h3>
       <p className="mb-3 text-xs text-white/40">
-        Déclenchées par un état : niveau des jauges (sous pression → stressé → cramé), nuit/inactivité
-        (dodo) ou anniversaire. Renommables, mais pas supprimables.
+        Poses de base, déclenchées par un état : <strong>Tranquille</strong> (par défaut / repli),
+        niveau des jauges (sous pression → stressé → cramé), nuit/inactivité (dodo) ou anniversaire.
+        Renommables, mais pas supprimables.
       </p>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {special.map((p) => (

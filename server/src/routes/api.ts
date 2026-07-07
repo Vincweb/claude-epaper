@@ -23,10 +23,8 @@ import {
   allPosesResolved,
   customPoses,
   deleteCustomPose,
-  disabledKeys,
   findPose,
   renamePose,
-  setPoseDisabled,
 } from '../poses.js';
 import {
   authenticationOptions,
@@ -164,14 +162,12 @@ function parsePoseParams(variant: string, key: string): { variant: SpriteVariant
 apiRouter.get('/poses', requireAuth, (_req, res) => {
   const specialKeys = new Set(SPECIAL_POSES.map((p) => p.key));
   const customKeys = new Set(customPoses().map((p) => p.key));
-  const disabled = new Set(disabledKeys());
   res.json({
     poses: allPosesResolved().map((p) => ({
       key: p.key,
       title: p.title,
       special: specialKeys.has(p.key),
-      userAdded: customKeys.has(p.key), // pose ajoutée par l'utilisateur (supprimable)
-      disabled: disabled.has(p.key), // pose de base retirée de la rotation
+      userAdded: customKeys.has(p.key), // humeur perso (rotation, supprimable)
       epaper: poseAssetInfo('epaper', p.key),
       web: poseAssetInfo('web', p.key),
     })),
@@ -190,19 +186,9 @@ apiRouter.post('/poses', requireAuth, (req, res) => {
   res.json({ ok: true, pose });
 });
 
-/** Renomme une humeur (`{title}`) ou la masque/réaffiche en rotation (`{disabled}`). */
+/** Renomme une humeur (spéciale de base ou personnalisée). */
 apiRouter.put('/poses/:key', requireAuth, (req, res) => {
-  const body = req.body ?? {};
-  if (typeof body.disabled === 'boolean') {
-    if (!setPoseDisabled(req.params.key, body.disabled)) {
-      res.status(400).json({ error: 'masquage impossible (rotation uniquement)' });
-      return;
-    }
-    poller.refresh();
-    res.json({ ok: true });
-    return;
-  }
-  const title = typeof body.title === 'string' ? body.title : '';
+  const title = typeof req.body?.title === 'string' ? req.body.title : '';
   if (!renamePose(req.params.key, title)) {
     res.status(400).json({ error: 'renommage impossible' });
     return;

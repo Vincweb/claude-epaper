@@ -40,11 +40,13 @@ affichent toujours la même chose (pose, niveau, stats).
   118×118 N&B affiché 1:1/pixelated, web ≥480×480 couleur HD affiché lissé) ;
   overrides utilisateur uploadés dans `CONFIG_DIR/sprites/` (galerie Humeurs). Fallback :
   rendu vectoriel `clawdSvg`. `scripts/gen-sprites.mjs` régénère les défauts.
-- `mascot.ts` : logique de pose partagée, `selectPose`/`forcedPose`, pools,
-  `ALL_POSES`/`SHUFFLE_POOL`/`SPECIAL_POSES`, stats, niveau.
+- `mascot.ts` : logique de pose partagée, `selectPose`/`forcedPose`, stats,
+  niveau. **Aucune pose de rotation codée** : `SHUFFLE_POOL` est vide, la rotation
+  vient des humeurs perso. `SPECIAL_POSES` = poses de base (Tranquille par défaut
+  `DEFAULT_POSE`, stress alert/worried/panic, dodo, anniversaire).
 - `poses.ts` : personnalisation persistée (`CONFIG_DIR/poses.json`) — renommage
-  (`titles`) et humeurs de rotation ajoutées (`custom`) ; `withTitle`,
-  `customPoses`, `rotationPoses`, `findPose` (base + perso).
+  (`titles`, spéciale ou perso) et humeurs de rotation (`custom`, = toute la
+  rotation) ; `withTitle`, `customPoses`, `rotationPoses`, `findPose`.
 - `auth.ts` : WebAuthn + code de récup (fichier `CONFIG_DIR/auth.json`),
   middleware `requireAuth` (bypass **boucle locale** pour la boucle e-paper).
 - `routes/api.ts` : endpoints (voir ci-dessous).
