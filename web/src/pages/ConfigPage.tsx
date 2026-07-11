@@ -2,12 +2,16 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useAppData } from '../App';
 import {
   checkUpdate,
+  createApiToken,
+  getApiToken,
   getConfig,
   getVersion,
   importCredentials,
   putConfig,
   registerPasskey,
+  revokeApiToken,
   systemUpdate,
+  type ApiToken,
   type UpdateCheck,
   type VersionInfo,
 } from '../api';
@@ -39,6 +43,10 @@ export function ConfigPage() {
   const [version, setVersion] = useState<VersionInfo | null>(null);
   const [upd, setUpd] = useState<UpdateCheck | null>(null);
   const [checking, setChecking] = useState(true);
+  const [apiToken, setApiToken] = useState<ApiToken | null>(null);
+  const [tokenBusy, setTokenBusy] = useState(false);
+  const [revealKey, setRevealKey] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     getConfig().then((c) => {
@@ -46,6 +54,7 @@ export function ConfigPage() {
       setForm(c);
     });
     getVersion().then(setVersion).catch(() => {});
+    getApiToken().then(setApiToken).catch(() => {});
     checkUpdate()
       .then(setUpd)
       .catch(() => setUpd({ behind: 0, error: 'indisponible' }))
@@ -86,6 +95,38 @@ export function ConfigPage() {
       setPasskeyMsg('✅ Nouvelle passkey enregistrée');
     } catch {
       setPasskeyMsg('❌ Échec / annulé');
+    }
+  };
+
+  const genToken = async () => {
+    setTokenBusy(true);
+    try {
+      setApiToken(await createApiToken());
+      setRevealKey(true);
+    } finally {
+      setTokenBusy(false);
+    }
+  };
+
+  const dropToken = async () => {
+    setTokenBusy(true);
+    try {
+      await revokeApiToken();
+      setApiToken({ token: null });
+      setRevealKey(false);
+    } finally {
+      setTokenBusy(false);
+    }
+  };
+
+  const copyToken = async () => {
+    if (!apiToken?.token) return;
+    try {
+      await navigator.clipboard.writeText(apiToken.token);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard indisponible (http) */
     }
   };
 
@@ -210,6 +251,91 @@ export function ConfigPage() {
             <span>Rotation 180° (dalle montée à l'envers)</span>
             <input type="checkbox" checked={form.epaperRotate === 180} onChange={(e) => patch({ epaperRotate: e.target.checked ? 180 : 0 })} />
           </label>
+        </Section>
+
+        <Section
+          title="Application iOS"
+          hint="Clé d'API pour l'app iPhone et son widget. Scanne le QR (appareil photo) pour appairer sans rien recopier."
+        >
+          {apiToken?.token ? (
+            <>
+              <div>
+                <label className="mb-1 block text-xs text-white/60">Clé d'API</label>
+                <div className="flex gap-2">
+                  <input
+                    className={`${field} font-mono`}
+                    readOnly
+                    type={revealKey ? 'text' : 'password'}
+                    value={apiToken.token}
+                  />
+                  <button
+                    onClick={() => setRevealKey((v) => !v)}
+                    title={revealKey ? 'Masquer' : 'Afficher'}
+                    className="shrink-0 rounded-lg bg-white/10 px-3 text-sm hover:bg-white/20"
+                  >
+                    {revealKey ? '🙈' : '👁'}
+                  </button>
+                  <button
+                    onClick={copyToken}
+                    title="Copier la clé"
+                    className="shrink-0 rounded-lg bg-white/10 px-3 text-sm hover:bg-white/20"
+                  >
+                    {copied ? '✅' : '⧉'}
+                  </button>
+                </div>
+                {apiToken.base && (
+                  <p className="mt-1 text-[11px] text-white/40">
+                    URL serveur : <code>{apiToken.base}</code>
+                  </p>
+                )}
+              </div>
+
+              {apiToken.qr && (
+                <div className="flex items-center gap-4">
+                  <img
+                    src={apiToken.qr}
+                    alt="QR d'appairage iOS"
+                    className="h-32 w-32 rounded-lg bg-white p-1"
+                  />
+                  <p className="text-[11px] text-white/40">
+                    Dans l'app iOS, appuie sur « Scanner le QR », ou ouvre l'appareil photo :
+                    le lien d'appairage remplit l'URL et la clé automatiquement.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={genToken}
+                  disabled={tokenBusy}
+                  className="rounded-lg bg-white/10 px-3 py-2 text-sm hover:bg-white/20 disabled:opacity-50"
+                >
+                  Régénérer
+                </button>
+                <button
+                  onClick={dropToken}
+                  disabled={tokenBusy}
+                  className="rounded-lg bg-white/10 px-3 py-2 text-sm text-[#e0533c] hover:bg-white/20 disabled:opacity-50"
+                >
+                  Révoquer
+                </button>
+                <span className="text-[11px] text-white/35">
+                  Régénérer/révoquer déconnecte les appareils déjà appairés.
+                </span>
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={genToken}
+                disabled={tokenBusy}
+                className="rounded-lg bg-[#d97757] px-3 py-2 text-sm font-medium text-black hover:brightness-110 disabled:opacity-50"
+              >
+                {tokenBusy ? 'Génération…' : 'Générer une clé d\'API'}
+              </button>
+              <span className="text-[11px] text-white/40">Aucune clé — le widget iOS ne peut pas se connecter.</span>
+            </div>
+          )}
         </Section>
 
         <Section title="Authentification" hint="Passkey WebAuthn du dashboard.">

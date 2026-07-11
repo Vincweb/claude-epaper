@@ -68,6 +68,10 @@ affichent toujours la même chose (pose, niveau, stats).
 - `POST /pose/shuffle` · `POST /pose/reset` — pose manuelle.
 - `POST /auth/register/{options,verify}` · `/auth/login/{options,verify}` ·
   `/auth/recover` · `/auth/logout` · `GET /auth/state` · `POST /auth/import`.
+- `GET|POST|DELETE /auth/token` — clé d'API (Bearer) pour l'**app iOS / widget**
+  (projet séparé `MacOS/ClawdWidget`). `requireAuth` accepte en plus `Authorization: Bearer <clé>`
+  (ou `X-API-Key`). `POST`/`GET` renvoient aussi un deep-link `clawd://setup?base=&key=`
+  + son QR (appairage sans recopie). Clé stockée dans `auth.json` (`apiToken`).
 - `GET /system/version` · `GET /system/update-check` (git fetch + behind) ·
   `POST /system/update` (lance `scripts/self-update.sh` détaché).
 

@@ -33,6 +33,8 @@ interface AuthData {
   recoverySalt: string; // hex
   sessionSecret: string; // hex
   createdAt: string;
+  /** Clé d'API (Bearer) pour les clients natifs — app iOS / widget. Optionnelle. */
+  apiToken?: string;
 }
 
 const RP_NAME = 'Claude e-paper';
@@ -60,6 +62,47 @@ export function isConfigured(): boolean {
 }
 export function authFilePath(): string {
   return authPath();
+}
+
+/* ------------------------------- clé d'API -------------------------------- */
+
+/** Clé d'API courante (Bearer) exposée aux clients natifs, ou null. */
+export function getApiToken(): string | null {
+  return read()?.apiToken ?? null;
+}
+
+/** (Re)génère la clé d'API. Nécessite une auth déjà configurée. */
+export function generateApiToken(): string | null {
+  const d = read();
+  if (!d) return null;
+  d.apiToken = crypto.randomBytes(24).toString('base64url'); // 32 caractères URL-safe
+  write(d);
+  return d.apiToken;
+}
+
+/** Révoque la clé d'API (les clients existants sont déconnectés). */
+export function revokeApiToken(): void {
+  const d = read();
+  if (!d?.apiToken) return;
+  delete d.apiToken;
+  write(d);
+}
+
+/** Compare (temps constant) un token présenté à la clé stockée. */
+export function verifyApiToken(token: string): boolean {
+  const stored = read()?.apiToken;
+  if (!stored || !token) return false;
+  const a = Buffer.from(stored);
+  const b = Buffer.from(token);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+/** Extrait la clé d'un en-tête `Authorization: Bearer …` ou `X-API-Key`. */
+function bearerToken(req: Request): string | null {
+  const h = req.get('authorization');
+  if (h && /^Bearer\s+/i.test(h)) return h.replace(/^Bearer\s+/i, '').trim();
+  const x = req.get('x-api-key');
+  return x ? x.trim() : null;
 }
 
 /** rpID + origin dérivés de la requête (gère reverse proxy via trust proxy). */
@@ -248,9 +291,11 @@ function isLoopback(req: Request): boolean {
   return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
 }
 
-/** Protège une route : configurée + session valide (ou boucle locale). */
+/** Protège une route : boucle locale, clé d'API (Bearer) ou session valide. */
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
   if (isLoopback(req)) return next();
+  const token = bearerToken(req);
+  if (token && verifyApiToken(token)) return next(); // app iOS / widget
   if (!isConfigured()) {
     res.status(401).json({ error: 'not-configured' });
     return;

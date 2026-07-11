@@ -162,6 +162,34 @@ export async function logout(): Promise<void> {
   await fetch('/api/auth/logout', { method: 'POST' });
 }
 
+/* ------------------------- clé d'API (app iOS) ---------------------------- */
+
+export interface ApiToken {
+  /** Clé d'API courante, ou null si aucune n'a été générée. */
+  token: string | null;
+  /** URL de base à utiliser depuis le téléphone (déduite de la requête). */
+  base?: string;
+  /** Deep-link d'appairage `clawd://setup?base=…&key=…`. */
+  deeplink?: string;
+  /** QR (data URL) encodant le deep-link. */
+  qr?: string;
+}
+
+export async function getApiToken(): Promise<ApiToken> {
+  return (await fetch('/api/auth/token')).json();
+}
+
+/** (Re)génère la clé d'API pour l'app iOS / le widget. */
+export async function createApiToken(): Promise<ApiToken> {
+  const r = await fetch('/api/auth/token', { method: 'POST' });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? 'token-failed');
+  return r.json();
+}
+
+export async function revokeApiToken(): Promise<void> {
+  await fetch('/api/auth/token', { method: 'DELETE' });
+}
+
 export interface VersionInfo {
   version: string;
   commit: string;

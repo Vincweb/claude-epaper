@@ -15,6 +15,7 @@
 - **Rendu e-paper** : dalle 2,13" unique, orientations **horizontale** (250×122) et **verticale** (122×250), carré mascotte 118×118 affiché 1:1, **police pixel Tiny5** (net à petite taille), point online **clignotant** (1 s).
 - **Boucle Python** `epaper_push.py` : cadence 1 s alignée sur l'horloge (animations fluides), refresh partiel type Bjorn + complet périodique (anti-ghosting).
 - **Installation native packagée** : `Makefile` (install/run/update/services) + unités `systemd` + auto-update depuis le dashboard.
+- **Clé d'API + app iOS** : `GET|POST|DELETE /api/auth/token` (clé Bearer générée dans Config, QR d'appairage) ; `requireAuth` accepte `Authorization: Bearer`. App iPhone + **widget** natif (`MacOS/ClawdWidget`) qui affiche l'état (mascotte, jauges, stats, niveau) via `/api/usage`.
 
 ## 🎯 Priorités
 
@@ -42,6 +43,8 @@ session tourne quelque part, réveil, XP/stats).
   pour un daemon dédié.
 - **Auth** : les appareils ne sont pas en boucle locale → **token API** (clé secrète
   générée dans Config), pas WebAuthn (navigateur/humain). À inclure dans le plugin.
+  → **déjà en place** : `/api/auth/token` + `Authorization: Bearer` (voir « Fait »),
+  réutilisable tel quel par le plugin.
 - **Serveur** : endpoint d'ingestion → alimente le poller (marquer `lastActivityAt`,
   forcer temporairement une pose, incrémenter l'XP…), sans casser la source de vérité
   unique.

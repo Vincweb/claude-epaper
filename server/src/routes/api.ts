@@ -29,11 +29,14 @@ import {
 import {
   authenticationOptions,
   clearSession,
+  generateApiToken,
+  getApiToken,
   isAuthed,
   isConfigured,
   issueSession,
   registrationOptions,
   requireAuth,
+  revokeApiToken,
   verifyAuthentication,
   verifyRecovery,
   verifyRegistration,
@@ -130,6 +133,38 @@ apiRouter.post('/auth/recover', (req, res) => {
 
 apiRouter.post('/auth/logout', (_req, res) => {
   clearSession(res);
+  res.json({ ok: true });
+});
+
+/* ---------------------- clé d'API (app iOS / widget) ---------------------- */
+
+/** Construit le deep-link d'appairage `clawd://setup?base=…&key=…` + son QR. */
+async function iosSetup(req: express.Request, token: string) {
+  const base = `${req.protocol}://${req.get('host')}`;
+  const deeplink = `clawd://setup?base=${encodeURIComponent(base)}&key=${encodeURIComponent(token)}`;
+  const qr = await QRCode.toDataURL(deeplink, { margin: 1, width: 320 });
+  return { token, base, deeplink, qr };
+}
+
+/** Clé d'API courante (+ deep-link/QR d'appairage si elle existe). */
+apiRouter.get('/auth/token', requireAuth, async (req, res) => {
+  const token = getApiToken();
+  res.json(token ? await iosSetup(req, token) : { token: null });
+});
+
+/** (Re)génère la clé d'API et renvoie le nouveau deep-link/QR. */
+apiRouter.post('/auth/token', requireAuth, async (req, res) => {
+  const token = generateApiToken();
+  if (!token) {
+    res.status(400).json({ error: 'not-configured' });
+    return;
+  }
+  res.json(await iosSetup(req, token));
+});
+
+/** Révoque la clé d'API (déconnecte l'app iOS / le widget). */
+apiRouter.delete('/auth/token', requireAuth, (_req, res) => {
+  revokeApiToken();
   res.json({ ok: true });
 });
 
