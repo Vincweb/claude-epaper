@@ -2,14 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   addRotationPose,
   deletePose,
-  listPoses,
+  loadGallery,
   poseAssetUrl,
   renamePose,
   resetPoseAsset,
+  resetPoseLook,
   uploadPoseAsset,
+  type LookParts,
   type PoseInfo,
   type SpriteVariant,
 } from '../api';
+import { ClawdLive } from './ClawdLive';
+import { PoseEditor } from './PoseEditor';
 
 /** Descriptions & déclencheurs (informative ; les visuels viennent du serveur). */
 const POSE_DESC: Record<string, string> = {
@@ -38,7 +42,7 @@ const VARIANT_INFO: Record<SpriteVariant, { label: string; hint: string; frame: 
   },
   web: {
     label: 'Web (couleur, HD)',
-    hint: 'Affiché sur le dashboard, lissé — PNG ou GIF couleur HD (≥ 480×480), fond transparent.',
+    hint: 'Dessiné en direct sur le dashboard. Pour imposer ton image : PNG ou GIF couleur HD (≥ 480×480), fond transparent.',
     frame: 'bg-white/[0.04]',
   },
 };
@@ -48,11 +52,14 @@ function PoseCard({
   variant,
   bump,
   onChanged,
+  onGenerate,
 }: {
   pose: PoseInfo;
   variant: SpriteVariant;
   bump: number;
   onChanged: () => void;
+  /** Ouvre l'éditeur de look (absent tant que le catalogue n'est pas chargé). */
+  onGenerate?: () => void;
 }) {
   const info = pose[variant];
   const fileInput = useRef<HTMLInputElement>(null);
@@ -90,6 +97,14 @@ function PoseCard({
     else setName(pose.title);
   };
 
+  // Réinitialiser défait une couche à la fois : d'abord le fichier uploadé de
+  // cette variante, puis le look composé (retour au dessin d'origine).
+  const lookActive = pose.lookCustom && info.source === 'generated';
+  // Web sans fichier uploadé : Clawd dessiné en direct, comme sur l'écran principal.
+  const live = variant === 'web' && info.source !== 'upload';
+  const onReset = () =>
+    void run(() => (info.custom ? resetPoseAsset(variant, pose.key) : resetPoseLook(pose.key)));
+
   // Seules les humeurs personnalisées (rotation) sont supprimables.
   const onRemove = () => {
     if (window.confirm(`Supprimer l'humeur « ${pose.title} » ?`)) void run(() => deletePose(pose.key));
@@ -98,12 +113,16 @@ function PoseCard({
   return (
     <div className="flex flex-col items-center rounded-2xl border border-white/10 bg-white/[0.03] p-3">
       <div className={`rounded-xl p-2 ${VARIANT_INFO[variant].frame}`}>
-        <img
-          src={poseAssetUrl(variant, pose.key, bump)}
-          alt={pose.title}
-          className="h-[118px] w-[118px] object-contain"
-          style={variant === 'epaper' ? { imageRendering: 'pixelated' } : undefined}
-        />
+        {live ? (
+          <ClawdLive look={pose.look} size={118} title={pose.title} />
+        ) : (
+          <img
+            src={poseAssetUrl(variant, pose.key, bump)}
+            alt={pose.title}
+            className="h-[118px] w-[118px] object-contain"
+            style={variant === 'epaper' ? { imageRendering: 'pixelated' } : undefined}
+          />
+        )}
       </div>
       <div className="mt-2 w-full text-center">
         {editing ? (
@@ -134,14 +153,27 @@ function PoseCard({
         <div className="text-xs text-white/45">{POSE_DESC[pose.key] ?? 'humeur personnalisée'}</div>
         <div className="mt-1 flex flex-wrap items-center justify-center gap-1">
           <span className="rounded-full bg-white/10 px-2 text-[10px] text-white/50">
-            {info.animated ? 'GIF animé' : 'PNG'}
+            {live ? 'vectoriel animé' : info.animated ? 'GIF animé' : 'PNG'}
           </span>
           {info.custom && (
-            <span className="rounded-full bg-[#d97757]/25 px-2 text-[10px] text-[#e0956f]">personnalisé</span>
+            <span className="rounded-full bg-[#d97757]/25 px-2 text-[10px] text-[#e0956f]">fichier perso</span>
+          )}
+          {lookActive && (
+            <span className="rounded-full bg-[#d97757]/25 px-2 text-[10px] text-[#e0956f]">généré</span>
           )}
         </div>
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+        {onGenerate && (
+          <button
+            onClick={onGenerate}
+            disabled={busy}
+            title="Composer le look et générer les sprites animés"
+            className="rounded-lg bg-[#d97757]/80 px-3 py-1 text-xs font-medium text-black hover:bg-[#e0956f] disabled:opacity-50"
+          >
+            Générer…
+          </button>
+        )}
         <input
           ref={fileInput}
           type="file"
@@ -163,10 +195,11 @@ function PoseCard({
         >
           Télécharger
         </a>
-        {info.custom && (
+        {(info.custom || pose.lookCustom) && (
           <button
-            onClick={() => void run(() => resetPoseAsset(variant, pose.key))}
+            onClick={onReset}
             disabled={busy}
+            title={info.custom ? 'Retirer le fichier uploadé' : "Revenir au dessin d'origine"}
             className="rounded-lg bg-white/10 px-3 py-1 text-xs hover:bg-white/20 disabled:opacity-50"
           >
             Réinitialiser
@@ -212,7 +245,9 @@ function AddPoseCard({ onAdded }: { onAdded: () => void }) {
     <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-3 text-center">
       <div className="text-2xl text-white/30">＋</div>
       <div className="mb-2 text-sm font-semibold text-white/70">Nouvelle humeur</div>
-      <div className="text-xs text-white/40">Ajoutée à la rotation. Remplace ensuite son visuel.</div>
+      <div className="text-xs text-white/40">
+        Ajoutée à la rotation, avec une tête tirée de son nom. Génère ou remplace ensuite son visuel.
+      </div>
       <input
         value={name}
         maxLength={40}
@@ -234,15 +269,20 @@ function AddPoseCard({ onAdded }: { onAdded: () => void }) {
 }
 
 /** Galerie des poses : visuels e-paper (N&B) et web (couleur), en deux groupes
- * (rotation / spéciales). Chaque pose = un PNG (fixe) ou GIF (animé) remplaçable,
- * renommable ; les poses de rotation peuvent être ajoutées/supprimées. */
+ * (rotation / spéciales). Chaque pose = un sprite généré depuis son look (éditeur)
+ * ou un PNG/GIF uploadé, renommable ; les poses de rotation s'ajoutent/suppriment. */
 export function StylesGallery() {
   const [poses, setPoses] = useState<PoseInfo[]>([]);
+  const [parts, setParts] = useState<LookParts | null>(null);
+  const [editing, setEditing] = useState<PoseInfo | null>(null);
   const [variant, setVariant] = useState<SpriteVariant>('epaper');
   const [bump, setBump] = useState(1); // cache-bust des <img> après un changement
 
   const reload = useCallback(() => {
-    void listPoses().then(setPoses);
+    void loadGallery().then((g) => {
+      setPoses(g.poses);
+      setParts(g.parts);
+    });
     setBump((b) => b + 1);
   }, []);
 
@@ -254,9 +294,10 @@ export function StylesGallery() {
   return (
     <div className="w-full">
       <p className="mb-3 text-center text-sm text-white/50">
-        Chaque pose est un fichier image remplaçable (PNG fixe, GIF animé) et renommable. Sur la
-        dalle, un GIF est lu à 1 image/seconde avec une pause de 10 s entre les boucles ; sur le web
-        il s'anime nativement.
+        Chaque pose est animée <strong>en continu</strong> : compose son look avec{' '}
+        <strong>Générer…</strong> (yeux, accessoires, animation) ou remplace-la par ton propre PNG/GIF.
+        La dalle lit l'animation à 1 image/seconde ; le web dessine Clawd en direct, en vectoriel
+        fluide.
       </p>
 
       <div className="mb-1 flex justify-center">
@@ -281,7 +322,14 @@ export function StylesGallery() {
       </p>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {rotation.map((p) => (
-          <PoseCard key={`${variant}-${p.key}`} pose={p} variant={variant} bump={bump} onChanged={reload} />
+          <PoseCard
+            key={`${variant}-${p.key}`}
+            pose={p}
+            variant={variant}
+            bump={bump}
+            onChanged={reload}
+            onGenerate={parts ? () => setEditing(p) : undefined}
+          />
         ))}
         <AddPoseCard onAdded={reload} />
       </div>
@@ -294,9 +342,20 @@ export function StylesGallery() {
       </p>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {special.map((p) => (
-          <PoseCard key={`${variant}-${p.key}`} pose={p} variant={variant} bump={bump} onChanged={reload} />
+          <PoseCard
+            key={`${variant}-${p.key}`}
+            pose={p}
+            variant={variant}
+            bump={bump}
+            onChanged={reload}
+            onGenerate={parts ? () => setEditing(p) : undefined}
+          />
         ))}
       </div>
+
+      {editing && parts && (
+        <PoseEditor pose={editing} parts={parts} onClose={() => setEditing(null)} onSaved={reload} />
+      )}
     </div>
   );
 }

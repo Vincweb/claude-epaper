@@ -10,7 +10,8 @@ import {
   selectPose,
   type Pose,
 } from './mascot.js';
-import { customPoses, findPose, rotationPoses, withTitle } from './poses.js';
+import { customPoses, findPose, resolvePose, rotationPoses } from './poses.js';
+import { poseAssetInfo } from './sprites.js';
 import type { PollerState, UsageSnapshot } from './types.js';
 
 /**
@@ -31,6 +32,7 @@ export class UsagePoller extends EventEmitter {
     level: 1,
     ageLabel: '0 h',
     poseManual: false,
+    poseWebUpload: false,
   };
 
   /** Pose forcée par l'utilisateur, honorée jusqu'à `manualUntil`. */
@@ -66,9 +68,10 @@ export class UsagePoller extends EventEmitter {
       });
     }
     const { level, label } = levelInfo(cfg.bornAt, this.state.usageXp);
-    // Applique le renommage utilisateur (les poses personnalisées ont déjà leur titre).
-    this.state.pose = withTitle(pose);
+    // Applique la personnalisation (titre + look) ; les poses perso sont déjà résolues.
+    this.state.pose = resolvePose(pose);
     this.state.poseManual = manual;
+    this.state.poseWebUpload = poseAssetInfo('web', this.state.pose).source === 'upload';
     this.state.stats = deriveStats(this.state.snapshot, this.state.lastActivityAt);
     this.state.level = level;
     this.state.ageLabel = label;

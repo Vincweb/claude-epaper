@@ -8,23 +8,28 @@ import QRCode from 'qrcode';
 import { poller } from '../poller.js';
 import { loadConfig, saveConfig } from '../config.js';
 import { importFromSource } from '../credentials.js';
+import { normalizeLayout, renderEpaperPng } from '../render.js';
 import {
+  clearSpriteCache,
   deletePoseAsset,
-  normalizeLayout,
+  generateSprite,
   poseAssetInfo,
   readPoseAsset,
-  renderEpaperPng,
   savePoseAsset,
+  SPRITE_SIZE,
   type SpriteVariant,
-} from '../render.js';
-import { SPECIAL_POSES, type Pose } from '../mascot.js';
+} from '../sprites.js';
+import { LOOK_PARTS, SPECIAL_POSES, sanitizeLook, type Pose } from '../mascot.js';
 import {
   addCustomPose,
   allPosesResolved,
   customPoses,
   deleteCustomPose,
+  deleteLook,
   findPose,
+  hasLookOverride,
   renamePose,
+  saveLook,
 } from '../poses.js';
 import {
   authenticationOptions,
@@ -193,7 +198,8 @@ function parsePoseParams(variant: string, key: string): { variant: SpriteVariant
   return pose ? { variant, pose } : null;
 }
 
-/** Liste des poses + état de leurs fichiers (statique/animé, défaut/personnalisé). */
+/** Liste des poses + look + état de leurs sprites (statique/animé, source),
+ * et le catalogue des pièces de l'éditeur (yeux, bouche, accessoires…). */
 apiRouter.get('/poses', requireAuth, (_req, res) => {
   const specialKeys = new Set(SPECIAL_POSES.map((p) => p.key));
   const customKeys = new Set(customPoses().map((p) => p.key));
@@ -203,10 +209,30 @@ apiRouter.get('/poses', requireAuth, (_req, res) => {
       title: p.title,
       special: specialKeys.has(p.key),
       userAdded: customKeys.has(p.key), // humeur perso (rotation, supprimable)
-      epaper: poseAssetInfo('epaper', p.key),
-      web: poseAssetInfo('web', p.key),
+      look: sanitizeLook(p),
+      lookCustom: hasLookOverride(p.key), // look composé dans l'éditeur
+      epaper: poseAssetInfo('epaper', p),
+      web: poseAssetInfo('web', p),
     })),
+    parts: LOOK_PARTS,
   });
+});
+
+/** Aperçu d'un look (éditeur) : sprite généré à la volée, rien n'est enregistré.
+ * Query : variant, eyes, mouth, accessory, overhead, motion, size (web). */
+apiRouter.get('/poses/preview', requireAuth, (req, res) => {
+  const variant: SpriteVariant = req.query.variant === 'web' ? 'web' : 'epaper';
+  // e-paper : toujours 118 (1:1 dalle) ; web : aperçu réduit par défaut (rapide sur le Pi).
+  const size =
+    variant === 'web' ? Math.max(60, Math.min(SPRITE_SIZE.web, Number(req.query.size) || 240)) : SPRITE_SIZE.epaper;
+  try {
+    const { buf, type } = generateSprite(sanitizeLook(req.query), variant, size);
+    res.set('Content-Type', type);
+    res.set('Cache-Control', 'no-store');
+    res.send(buf);
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
 });
 
 /** Crée une humeur de rotation personnalisée (titre requis, visuel par défaut). */
@@ -245,7 +271,34 @@ apiRouter.delete('/poses/:key', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-/** Fichier d'une pose (PNG ou GIF). Généré du vectoriel si aucun fichier.
+// ⚠ Routes « look » AVANT « /poses/:variant/:key » : même forme d'URL, Express
+// prend la première qui correspond.
+
+/** Enregistre le look composé dans l'éditeur → le sprite (e-paper + web) est
+ * généré à partir de lui. Les fichiers uploadés de la pose sont retirés : sinon
+ * ils resteraient prioritaires et masqueraient le look qu'on vient de créer. */
+apiRouter.put('/poses/:key/look', requireAuth, (req, res) => {
+  const look = saveLook(req.params.key, req.body?.look);
+  if (!look) {
+    res.status(404).json({ error: 'pose inconnue' });
+    return;
+  }
+  deletePoseAsset('epaper', req.params.key);
+  deletePoseAsset('web', req.params.key);
+  clearSpriteCache();
+  poller.refresh();
+  res.json({ ok: true, look });
+});
+
+/** Oublie le look composé (retour au dessin d'origine / au look tiré du nom). */
+apiRouter.delete('/poses/:key/look', requireAuth, (req, res) => {
+  deleteLook(req.params.key);
+  clearSpriteCache();
+  poller.refresh();
+  res.json({ ok: true });
+});
+
+/** Fichier d'une pose (PNG ou GIF). Généré depuis son look si aucun fichier.
  * Volontairement SANS auth : affiché sur l'écran de connexion (mascotte),
  * aucune donnée sensible — liste, upload et suppression restent protégés. */
 apiRouter.get('/poses/:variant/:key', (req, res) => {
@@ -277,6 +330,7 @@ apiRouter.put(
     }
     try {
       const info = savePoseAsset(parsed.variant, parsed.pose.key, req.body as Buffer);
+      poller.refresh();
       res.json({ ok: true, ...info });
     } catch (e) {
       res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
@@ -292,6 +346,7 @@ apiRouter.delete('/poses/:variant/:key', requireAuth, (req, res) => {
     return;
   }
   deletePoseAsset(parsed.variant, parsed.pose.key);
+  poller.refresh();
   res.json({ ok: true });
 });
 

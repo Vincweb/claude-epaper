@@ -3,19 +3,19 @@ import type { AppConfig } from './config.js';
 
 // Logique de mascotte partagée (miroir de web/src/lib/usage.ts) pour le rendu e-paper.
 
-export type ClawdEyes = 'square' | 'wide' | 'happy' | 'sleep' | 'spiral' | 'wink' | 'shades' | 'cross';
-export type ClawdMouth = 'none' | 'line' | 'open' | 'kiss';
-export type ClawdAccessory = 'none' | 'laptop' | 'coffee' | 'ball' | 'wand' | 'heart' | 'skateboard';
-export type ClawdOverhead = 'none' | 'party' | 'zzz' | 'sparkle-hat' | 'sun' | 'umbrella';
-
-export interface Pose {
-  key: string;
-  title: string;
-  eyes: ClawdEyes;
-  mouth?: ClawdMouth;
-  accessory?: ClawdAccessory;
-  overhead?: ClawdOverhead;
-}
+export {
+  LOOK_PARTS,
+  lookFromName,
+  sanitizeLook,
+  type ClawdAccessory,
+  type ClawdEyes,
+  type ClawdMotion,
+  type ClawdMouth,
+  type ClawdOverhead,
+  type Look,
+  type Pose,
+} from './look.js';
+import type { Pose } from './look.js';
 
 export interface Stat {
   key: string;
@@ -26,14 +26,20 @@ export interface Stat {
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 
 // Pose par défaut / repli (spéciale) : affichée quand rien d'autre ne s'applique.
-const NEUTRAL: Pose = { key: 'neutral', title: 'Tranquille', eyes: 'square' };
+const NEUTRAL: Pose = { key: 'neutral', title: 'Tranquille', eyes: 'square', motion: 'idle' };
 // Poses contextuelles (déclenchées par un état, jamais par la rotation).
-const SLEEP: Pose = { key: 'sleep', title: 'Dodo', eyes: 'sleep', overhead: 'zzz' };
-const BIRTHDAY: Pose = { key: 'birthday', title: 'Joyeux anniversaire !', eyes: 'happy', overhead: 'sparkle-hat' };
+const SLEEP: Pose = { key: 'sleep', title: 'Dodo', eyes: 'sleep', overhead: 'zzz', motion: 'sleep' };
+const BIRTHDAY: Pose = {
+  key: 'birthday',
+  title: 'Joyeux anniversaire !',
+  eyes: 'happy',
+  overhead: 'sparkle-hat',
+  motion: 'bounce',
+};
 // Poses de stress selon la jauge la plus contrainte (seuils de config).
-const ALERT: Pose = { key: 'alert', title: 'Sous pression', eyes: 'wide' };
-const WORRIED: Pose = { key: 'worried', title: 'Stressé', eyes: 'wide', mouth: 'open' };
-const PANIC: Pose = { key: 'panic', title: 'Cramé', eyes: 'cross', mouth: 'open' };
+const ALERT: Pose = { key: 'alert', title: 'Sous pression', eyes: 'wide', motion: 'nervous' };
+const WORRIED: Pose = { key: 'worried', title: 'Stressé', eyes: 'wide', mouth: 'open', motion: 'shake' };
+const PANIC: Pose = { key: 'panic', title: 'Cramé', eyes: 'cross', mouth: 'open', motion: 'shake' };
 
 /** Pose de repli, affichée par défaut (rotation vide, aucune personnalisée). */
 export const DEFAULT_POSE: Pose = NEUTRAL;
@@ -125,16 +131,4 @@ export function levelInfo(bornAt: string, usageXp = 0): { level: number; label: 
   const level = 1 + Math.floor(days / 7) + Math.floor(usageXp / XP_PER_LEVEL);
   const label = days >= 1 ? `${days} j` : `${Math.floor(ms / 3_600_000)} h`;
   return { level, label };
-}
-
-export function formatReset(resetsAt: string | null): string {
-  if (!resetsAt) return '-';
-  const ms = new Date(resetsAt).getTime() - Date.now();
-  if (Number.isNaN(ms) || ms <= 0) return 'maintenant';
-  const totalMin = Math.round(ms / 60000);
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  if (h >= 24) return `${Math.floor(h / 24)}j ${h % 24}h`;
-  if (h > 0) return `${h}h ${String(m).padStart(2, '0')}`;
-  return `${m} min`;
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { loginPasskey, poseAssetUrl, recoverWithCode, registerPasskey } from '../api';
+import { loginPasskey, recoverWithCode, registerPasskey } from '../api';
+import { ClawdLive } from './ClawdLive';
 
 type Props = { configured: boolean; onAuthenticated: () => void };
 
@@ -8,16 +9,9 @@ export function AuthScreen({ configured, onAuthenticated }: Props) {
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#1a1613] p-6 shadow-2xl">
         <div className="mb-4 flex flex-col items-center text-center">
-          {/* Sprite web « neutral » = pose par défaut (route publique : pas encore connecté).
-              En cas d'échec, on masque l'image plutôt que d'afficher une icône cassée. */}
-          <img
-            src={poseAssetUrl('web', 'neutral')}
-            alt="Clawd"
-            className="h-[120px] w-[120px] object-contain"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-            }}
-          />
+          {/* Clawd « Tranquille » dessiné en direct : pas encore connecté, donc le look
+              par défaut (la personnalisation de l'utilisateur n'est pas publique). */}
+          <ClawdLive look={{ eyes: 'square', motion: 'idle' }} size={120} gaze />
           <h1 className="text-xl font-semibold">Claude e-paper</h1>
           <p className="text-xs text-white/40">avec Clawd, ta mascotte</p>
         </div>

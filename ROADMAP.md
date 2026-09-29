@@ -10,9 +10,10 @@
 - **Auth passkey** (WebAuthn) + code de récupération (QR).
 - Mascotte **Clawd** : rotation dans la journée, café le matin, dodo (nuit / inactivité), anniversaire, bisou, soleil, pluie, magie, foot…
 - **Humeurs de stress** selon la jauge la plus contrainte (seuils config) : sous pression → stressé → cramé.
-- **Poses = fichiers** (source de vérité) : `server/sprites/{epaper,web}/<key>.png|.gif`, overrides utilisateur dans `CONFIG_DIR`. **PNG** (fixe) ou **GIF** (animé, 1 img/s + pause 10 s sur la dalle).
-- **Galerie Humeurs** : deux volets e-paper (N&B) / web (couleur) ; par pose → remplacer (upload), télécharger, réinitialiser, **renommer**, **ajouter** (rotation) et **retirer/supprimer** (rotation seulement).
-- **Rendu e-paper** : dalle 2,13" unique, orientations **horizontale** (250×122) et **verticale** (122×250), carré mascotte 118×118 affiché 1:1, **police pixel Tiny5** (net à petite taille), point online **clignotant** (1 s).
+- **Poses = looks animés** (façon blobatar) : couche idle continue, fonction pure du temps (respire, cligne, regard, sautille, se dandine, nerveux, tremble, somnole) ; sprites e-paper générés `server/sprites/epaper/<key>.gif`, overrides utilisateur dans `CONFIG_DIR`. GIF lus **en continu** (délais respectés, plus de pause de 10 s).
+- **Clawd web live** : dessin partagé serveur ↔ web, rendu vectoriel 60 img/s (orange Claude, dégradé, reflets, ombre, accessoires animés), regard qui suit le pointeur, en phase avec la dalle.
+- **Galerie Humeurs** : deux volets e-paper (N&B) / web (couleur) ; par pose → **générer** (éditeur de look : yeux, bouche, accessoire, chapeau, animation, 🎲), remplacer (upload), télécharger, réinitialiser, **renommer**, **ajouter** (rotation, tête tirée du nom) et **retirer/supprimer** (rotation seulement).
+- **Rendu e-paper** : dalle 2,13" unique, orientations **horizontale** (250×122) et **verticale** (122×250), carré mascotte 118×118 affiché 1:1, point online **clignotant** (1 s). Interface retravaillée pour la lisibilité : texte Tiny5 uniquement à sa taille nette (×2), gros pourcentages en chiffres LCD, reset avec icône horloge, stats en icônes (♥ joie, 🍎 repu), « -- » + « HORS LIGNE » sans données.
 - **Boucle Python** `epaper_push.py` : cadence 1 s alignée sur l'horloge (animations fluides), refresh partiel type Bjorn + complet périodique (anti-ghosting).
 - **Installation native packagée** : `Makefile` (install/run/update/services) + unités `systemd` + auto-update depuis le dashboard.
 - **Clé d'API + app iOS** : `GET|POST|DELETE /api/auth/token` (clé Bearer générée dans Config, QR d'appairage) ; `requireAuth` accepte `Authorization: Bearer`. App iPhone + **widget** natif (`MacOS/ClawdWidget`) qui affiche l'état (mascotte, jauges, stats, niveau) via `/api/usage`.
@@ -63,3 +64,5 @@ session tourne quelque part, réveil, XP/stats).
 - [ ] Bouton physique (GPIO) pour changer d'écran / de vue sur le Pi.
 - [ ] Multi-comptes (basculer entre plusieurs credentials).
 - [ ] Éditeur pixel art intégré (dessiner une pose directement dans la galerie).
+- [ ] **Morph entre poses** (blobatar) : quelques images de transition quand la pose change (ex. Tranquille → Stressé) plutôt qu'une coupe sèche.
+- [ ] Plus d'animations : agiter un bras, s'étirer, regarder en l'air ; extras animés (ballon qui roule, roues du skate).

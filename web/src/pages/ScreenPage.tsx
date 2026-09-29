@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../App';
 import { poseAssetUrl } from '../api';
+import { ClawdLive } from '../components/ClawdLive';
 import { Gauge } from '../components/Gauge';
 import { TamagotchiStats } from '../components/TamagotchiStats';
 import { StatsModal } from '../components/StatsModal';
@@ -27,6 +28,7 @@ export function ScreenPage() {
   const stats: Stat[] = state?.stats ?? [];
   const level = state?.level ?? 1;
   const ageLabel = state?.ageLabel ?? '0 h';
+  const lookSig = JSON.stringify(pose);
 
   useEffect(() => {
     const sig = `${snap.fiveHour.utilization}-${snap.sevenDay.utilization}`;
@@ -50,13 +52,23 @@ export function ScreenPage() {
   return (
     <>
       <div className="flex flex-col items-center">
-        {/* Sprite web HD (PNG/GIF) : même source que la galerie ; un GIF s'anime tout seul. */}
-        <img
-          key={`${pose.key}-${pulseKey}`}
-          src={poseAssetUrl('web', pose.key)}
-          alt={pose.title}
-          className="cc-pop h-[240px] w-[240px] object-contain"
-        />
+        {/* Clawd dessiné en direct (vectoriel 60 img/s, yeux qui suivent le pointeur),
+            sauf si un fichier web a été uploadé pour cette pose : affiché tel quel.
+            La clé relance le « pop » à chaque changement de pose ou de conso. */}
+        <div
+          key={`${pose.key}-${pulseKey}-${lookSig}`}
+          className="cc-pop transition-transform duration-300 ease-out hover:-translate-y-1 hover:scale-[1.03]"
+        >
+          {state?.poseWebUpload ? (
+            <img
+              src={poseAssetUrl('web', pose.key, lookSig)}
+              alt={pose.title}
+              className="h-[240px] w-[240px] object-contain"
+            />
+          ) : (
+            <ClawdLive look={pose} size={240} title={pose.title} gaze />
+          )}
+        </div>
         <div className="mt-1 flex items-center gap-2">
           <span className="rounded-full bg-white/10 px-4 py-1 text-sm font-medium text-white/80">
             {pose.title}

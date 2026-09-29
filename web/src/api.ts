@@ -33,8 +33,17 @@ export type SpriteVariant = 'epaper' | 'web';
 
 export interface PoseAssetInfo {
   animated: boolean;
+  /** Fichier uploadé par l'utilisateur (prioritaire sur tout le reste). */
   custom: boolean;
+  /** D'où vient le sprite affiché : upload, généré depuis le look, défaut embarqué. */
+  source: 'upload' | 'generated' | 'default';
 }
+
+/** Pièces d'un look (cf. server/src/mascot.ts `LOOK_PARTS`). */
+export type LookPart = 'eyes' | 'mouth' | 'accessory' | 'overhead' | 'motion';
+export type Look = Record<LookPart, string>;
+/** Catalogue : pièce → (valeur → libellé FR), fourni par le serveur. */
+export type LookParts = Record<LookPart, Record<string, string>>;
 
 export interface PoseInfo {
   key: string;
@@ -43,13 +52,40 @@ export interface PoseInfo {
   special: boolean;
   /** Pose ajoutée par l'utilisateur (rotation : renommable ET supprimable). */
   userAdded: boolean;
+  look: Look;
+  /** Look composé dans l'éditeur (sinon : dessin d'origine / tiré du nom). */
+  lookCustom: boolean;
   epaper: PoseAssetInfo;
   web: PoseAssetInfo;
 }
 
-export async function listPoses(): Promise<PoseInfo[]> {
+export async function loadGallery(): Promise<{ poses: PoseInfo[]; parts: LookParts | null }> {
   const r = await fetch('/api/poses');
-  return (await r.json()).poses ?? [];
+  const j = await r.json();
+  return { poses: j.poses ?? [], parts: j.parts ?? null };
+}
+
+/** Aperçu d'un look, généré à la volée par le serveur (rien n'est enregistré). */
+export function posePreviewUrl(variant: SpriteVariant, look: Look): string {
+  const q = new URLSearchParams({ variant, ...look });
+  // Web : 360 px suffit à l'aperçu (net en Retina) et se génère vite sur le Pi.
+  if (variant === 'web') q.set('size', '360');
+  return `/api/poses/preview?${q}`;
+}
+
+/** Enregistre le look d'une pose → ses sprites e-paper + web sont générés. */
+export async function savePoseLook(key: string, look: Look): Promise<void> {
+  const r = await fetch(`/api/poses/${key}/look`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ look }),
+  });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? 'save-failed');
+}
+
+/** Oublie le look composé (retour au dessin d'origine). */
+export async function resetPoseLook(key: string): Promise<void> {
+  await fetch(`/api/poses/${key}/look`, { method: 'DELETE' });
 }
 
 /** Renomme une humeur (base ou personnalisée). */
@@ -77,8 +113,8 @@ export async function deletePose(key: string): Promise<void> {
   await fetch(`/api/poses/${key}`, { method: 'DELETE' });
 }
 
-export function poseAssetUrl(variant: SpriteVariant, key: string, bump = 0): string {
-  return `/api/poses/${variant}/${key}?v=${bump}`;
+export function poseAssetUrl(variant: SpriteVariant, key: string, bump: number | string = 0): string {
+  return `/api/poses/${variant}/${key}?v=${encodeURIComponent(bump)}`;
 }
 
 /** Remplace le visuel d'une pose (PNG ou GIF envoyé tel quel). */
