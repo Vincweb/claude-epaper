@@ -1,32 +1,23 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { GifReader, GifWriter } from 'omggif';
 import { PNG } from 'pngjs';
 import { clawdStandaloneSvg, hasAnimatedExtras } from './clawd.js';
-import { getConfigDir } from './config.js';
 import { idleFrame, motionLoop } from './idle.js';
 import type { Look, Pose } from './mascot.js';
-import { hasLookOverride } from './poses.js';
 import { rasterizeRgba, rasterizeSvg } from './raster.js';
 
 /* ------------------------------------------------------------------------- *
- * Sprites de poses. Pour chaque variante, par ordre de priorité :
- *   1. CONFIG_DIR/sprites/<variant>/<key>.png|.gif  → fichier uploadé (galerie)
- *   2. look enregistré par l'utilisateur            → sprite GÉNÉRÉ (éditeur)
- *   3. server/sprites/<variant>/<key>.png|.gif      → défaut embarqué (repo)
- *   4. look de la pose                              → sprite GÉNÉRÉ
+ * Sprites de poses, TOUJOURS générés depuis le look (le générateur est la
+ * source de vérité : plus d'import de fichiers, plus de défauts embarqués).
  * e-paper : GIF 118×118 N&B à 1 img/s, lu EN CONTINU par la dalle (délais
  * respectés, arrondis à la seconde). web : PNG 480×480 couleur, fixe — le
  * dashboard, lui, dessine Clawd en vectoriel live à 60 img/s (même code,
  * `clawd.ts`) ; ce PNG sert au téléchargement et au widget iOS.
+ * Génération en quelques ms, mise en cache par look.
  * ------------------------------------------------------------------------- */
 
 export type SpriteVariant = 'epaper' | 'web';
 type AssetType = 'image/png' | 'image/gif';
-export type SpriteSource = 'upload' | 'generated' | 'default';
 
-const EMBED_SPRITES = fileURLToPath(new URL('../sprites/', import.meta.url));
 export const SPRITE_SIZE: Record<SpriteVariant, number> = { epaper: 118, web: 480 };
 /** Extras animés (Zzz, vapeur…) : boucles de 1, 2 ou 4 s. */
 const EXTRAS_LOOP = 4;
@@ -150,49 +141,15 @@ export function generateSprite(look: Look, variant: SpriteVariant, size = SPRITE
   return asset;
 }
 
-/* -------------------------------- fichiers -------------------------------- */
-
-function userSpriteDir(variant: SpriteVariant): string {
-  return path.join(getConfigDir(), 'sprites', variant);
-}
-
-function findFile(dir: string, key: string): string | null {
-  for (const ext of ['.gif', '.png']) {
-    const file = path.join(dir, key + ext);
-    if (fs.existsSync(file)) return file;
-  }
-  return null;
-}
-
-type Resolved = { source: SpriteSource; file: string | null };
-
-/** Source active d'une pose pour une variante (cf. priorités en tête de fichier). */
-function resolve(variant: SpriteVariant, key: string): Resolved {
-  const upload = findFile(userSpriteDir(variant), key);
-  if (upload) return { source: 'upload', file: upload };
-  if (!hasLookOverride(key)) {
-    const embedded = findFile(path.join(EMBED_SPRITES, variant), key);
-    if (embedded) return { source: 'default', file: embedded };
-  }
-  return { source: 'generated', file: null };
-}
-
-/** Fichier brut d'une pose (galerie, écran web, dalle). */
+/** Fichier d'une pose (téléchargement, widget iOS, dalle). */
 export function readPoseAsset(variant: SpriteVariant, pose: Pose): { buf: Buffer; type: AssetType } {
-  const { file } = resolve(variant, pose.key);
-  if (file) return { buf: fs.readFileSync(file), type: file.endsWith('.gif') ? 'image/gif' : 'image/png' };
   return generateSprite(pose, variant);
 }
 
-/** Métadonnées d'une pose pour la galerie web. */
-export function poseAssetInfo(
-  variant: SpriteVariant,
-  pose: Pose,
-): { animated: boolean; custom: boolean; source: SpriteSource } {
-  const { source, file } = resolve(variant, pose.key);
-  // Web généré = PNG fixe (l'animation vit dans le rendu vectoriel live du dashboard).
-  const animated = file ? file.endsWith('.gif') : variant === 'epaper' && lookLoop(pose) > 1;
-  return { animated, custom: source === 'upload', source };
+/** Le sprite de cette variante est-il animé ? (web : PNG fixe — l'animation vit
+ * dans le rendu vectoriel live du dashboard.) */
+export function poseAssetInfo(variant: SpriteVariant, pose: Pose): { animated: boolean } {
+  return { animated: variant === 'epaper' && lookLoop(pose) > 1 };
 }
 
 /** Décode un GIF en frames PNG (data-URIs) + délais. Gère les deux modes de
@@ -252,31 +209,4 @@ export function spriteFrame(asset: SpriteAsset, tick: number): string {
     t -= asset.delays[i];
   }
   return asset.frames[0];
-}
-
-const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
-const GIF_MAGIC = Buffer.from('GIF8');
-
-/** Enregistre un override utilisateur (PNG ou GIF, détecté par magic bytes). */
-export function savePoseAsset(variant: SpriteVariant, key: string, buf: Buffer): { animated: boolean } {
-  const isPng = buf.subarray(0, 4).equals(PNG_MAGIC);
-  const isGif = buf.subarray(0, 4).equals(GIF_MAGIC);
-  if (!isPng && !isGif) throw new Error('format non supporté (PNG ou GIF attendu)');
-  if (isGif) decodeGif(buf); // valide le GIF avant d'accepter
-  const dir = userSpriteDir(variant);
-  fs.mkdirSync(dir, { recursive: true });
-  // Une pose = un seul fichier : on remplace l'autre extension si présente.
-  fs.rmSync(path.join(dir, `${key}.png`), { force: true });
-  fs.rmSync(path.join(dir, `${key}.gif`), { force: true });
-  fs.writeFileSync(path.join(dir, key + (isGif ? '.gif' : '.png')), buf);
-  clearSpriteCache();
-  return { animated: isGif };
-}
-
-/** Supprime l'override utilisateur (retour au look généré ou au défaut embarqué). */
-export function deletePoseAsset(variant: SpriteVariant, key: string): void {
-  const dir = userSpriteDir(variant);
-  fs.rmSync(path.join(dir, `${key}.png`), { force: true });
-  fs.rmSync(path.join(dir, `${key}.gif`), { force: true });
-  clearSpriteCache();
 }

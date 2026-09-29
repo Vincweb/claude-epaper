@@ -37,8 +37,8 @@ const BIRTHDAY: Pose = {
   motion: 'bounce',
 };
 // Poses de stress selon la jauge la plus contrainte (seuils de config).
-const ALERT: Pose = { key: 'alert', title: 'Sous pression', eyes: 'wide', motion: 'nervous' };
-const WORRIED: Pose = { key: 'worried', title: 'Stressé', eyes: 'wide', mouth: 'open', motion: 'shake' };
+const ALERT: Pose = { key: 'alert', title: 'Sous pression', eyes: 'square', mouth: 'line', motion: 'nervous' };
+const WORRIED: Pose = { key: 'worried', title: 'Stressé', eyes: 'square', mouth: 'open', motion: 'shake' };
 const PANIC: Pose = { key: 'panic', title: 'Cramé', eyes: 'cross', mouth: 'open', motion: 'shake' };
 
 /** Pose de repli, affichée par défaut (rotation vide, aucune personnalisée). */

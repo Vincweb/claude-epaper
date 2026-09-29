@@ -70,9 +70,10 @@ interface MotionDef {
   shake?: number;
 }
 
+// Regard : ±3 px (plus d'une demi-cellule de Clawd), lisible sur la dalle.
 const C: [number, number] = [0, 0];
-const R: [number, number] = [2, 0];
-const L: [number, number] = [-2, 0];
+const R: [number, number] = [3, 0];
+const L: [number, number] = [-3, 0];
 
 /** Les animations. Boucles courtes, diviseurs de 12 s, pour que le GIF boucle net. */
 const MOTIONS: Record<ClawdMotion, MotionDef> = {
@@ -86,18 +87,18 @@ const MOTIONS: Record<ClawdMotion, MotionDef> = {
   // Sautille une seconde sur deux, bras en l'air au sommet.
   bounce: {
     loop: 4,
-    bob: [0, -4, 0, -4],
-    armL: [0, -3, 0, -3],
-    armR: [0, -3, 0, -3],
+    bob: [0, -5, 0, -5],
+    armL: [0, -5, 0, -5],
+    armR: [0, -5, 0, -5],
     blink: [2],
   },
   // Se dandine de gauche à droite, un bras levé du côté où il penche.
   sway: {
     loop: 4,
     dx: [0, 2, 0, -2],
-    look: [C, [1, 0], C, [-1, 0]],
-    armL: [0, 0, 0, -3],
-    armR: [0, -3, 0, 0],
+    look: [C, [2, 0], C, [-2, 0]],
+    armL: [0, 0, 0, -5],
+    armR: [0, -5, 0, 0],
   },
   // Regards inquiets d'un côté à l'autre, respiration courte.
   nervous: {

@@ -33,10 +33,6 @@ export type SpriteVariant = 'epaper' | 'web';
 
 export interface PoseAssetInfo {
   animated: boolean;
-  /** Fichier uploadé par l'utilisateur (prioritaire sur tout le reste). */
-  custom: boolean;
-  /** D'où vient le sprite affiché : upload, généré depuis le look, défaut embarqué. */
-  source: 'upload' | 'generated' | 'default';
 }
 
 /** Pièces d'un look (cf. server/src/mascot.ts `LOOK_PARTS`). */
@@ -115,21 +111,6 @@ export async function deletePose(key: string): Promise<void> {
 
 export function poseAssetUrl(variant: SpriteVariant, key: string, bump: number | string = 0): string {
   return `/api/poses/${variant}/${key}?v=${encodeURIComponent(bump)}`;
-}
-
-/** Remplace le visuel d'une pose (PNG ou GIF envoyé tel quel). */
-export async function uploadPoseAsset(variant: SpriteVariant, key: string, file: File): Promise<void> {
-  const r = await fetch(`/api/poses/${variant}/${key}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': file.type || 'application/octet-stream' },
-    body: file,
-  });
-  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? 'upload-failed');
-}
-
-/** Supprime la personnalisation d'une pose (retour au visuel par défaut). */
-export async function resetPoseAsset(variant: SpriteVariant, key: string): Promise<void> {
-  await fetch(`/api/poses/${variant}/${key}`, { method: 'DELETE' });
 }
 
 /** Abonnement SSE à l'état du poller. Renvoie une fonction de désinscription. */

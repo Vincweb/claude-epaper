@@ -9,16 +9,7 @@ import { poller } from '../poller.js';
 import { loadConfig, saveConfig } from '../config.js';
 import { importFromSource } from '../credentials.js';
 import { normalizeLayout, renderEpaperPng } from '../render.js';
-import {
-  clearSpriteCache,
-  deletePoseAsset,
-  generateSprite,
-  poseAssetInfo,
-  readPoseAsset,
-  savePoseAsset,
-  SPRITE_SIZE,
-  type SpriteVariant,
-} from '../sprites.js';
+import { clearSpriteCache, generateSprite, poseAssetInfo, readPoseAsset, SPRITE_SIZE, type SpriteVariant } from '../sprites.js';
 import { LOOK_PARTS, SPECIAL_POSES, sanitizeLook, type Pose } from '../mascot.js';
 import {
   addCustomPose,
@@ -198,7 +189,7 @@ function parsePoseParams(variant: string, key: string): { variant: SpriteVariant
   return pose ? { variant, pose } : null;
 }
 
-/** Liste des poses + look + état de leurs sprites (statique/animé, source),
+/** Liste des poses + look + état de leurs sprites (animés ou non),
  * et le catalogue des pièces de l'éditeur (yeux, bouche, accessoires…). */
 apiRouter.get('/poses', requireAuth, (_req, res) => {
   const specialKeys = new Set(SPECIAL_POSES.map((p) => p.key));
@@ -265,26 +256,21 @@ apiRouter.delete('/poses/:key', requireAuth, (req, res) => {
     res.status(400).json({ error: 'humeur non supprimable' });
     return;
   }
-  deletePoseAsset('epaper', key);
-  deletePoseAsset('web', key);
   poller.refresh();
   res.json({ ok: true });
 });
 
-// ⚠ Routes « look » AVANT « /poses/:variant/:key » : même forme d'URL, Express
-// prend la première qui correspond.
+// ⚠ Routes « look » AVANT « GET /poses/:variant/:key » : même forme d'URL,
+// Express prend la première qui correspond.
 
 /** Enregistre le look composé dans l'éditeur → le sprite (e-paper + web) est
- * généré à partir de lui. Les fichiers uploadés de la pose sont retirés : sinon
- * ils resteraient prioritaires et masqueraient le look qu'on vient de créer. */
+ * généré à partir de lui. */
 apiRouter.put('/poses/:key/look', requireAuth, (req, res) => {
   const look = saveLook(req.params.key, req.body?.look);
   if (!look) {
     res.status(404).json({ error: 'pose inconnue' });
     return;
   }
-  deletePoseAsset('epaper', req.params.key);
-  deletePoseAsset('web', req.params.key);
   clearSpriteCache();
   poller.refresh();
   res.json({ ok: true, look });
@@ -298,7 +284,7 @@ apiRouter.delete('/poses/:key/look', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-/** Fichier d'une pose (PNG ou GIF). Généré depuis son look si aucun fichier.
+/** Sprite d'une pose (GIF e-paper animé, PNG web), généré depuis son look.
  * Volontairement SANS auth : affiché sur l'écran de connexion (mascotte),
  * aucune donnée sensible — liste, upload et suppression restent protégés. */
 apiRouter.get('/poses/:variant/:key', (req, res) => {
@@ -315,39 +301,6 @@ apiRouter.get('/poses/:variant/:key', (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
   }
-});
-
-/** Remplace le visuel d'une pose (upload PNG/GIF, corps brut). */
-apiRouter.put(
-  '/poses/:variant/:key',
-  requireAuth,
-  express.raw({ type: () => true, limit: '4mb' }),
-  (req, res) => {
-    const parsed = parsePoseParams(req.params.variant, req.params.key);
-    if (!parsed) {
-      res.status(404).json({ error: 'pose inconnue' });
-      return;
-    }
-    try {
-      const info = savePoseAsset(parsed.variant, parsed.pose.key, req.body as Buffer);
-      poller.refresh();
-      res.json({ ok: true, ...info });
-    } catch (e) {
-      res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
-    }
-  },
-);
-
-/** Supprime la personnalisation (retour au visuel par défaut). */
-apiRouter.delete('/poses/:variant/:key', requireAuth, (req, res) => {
-  const parsed = parsePoseParams(req.params.variant, req.params.key);
-  if (!parsed) {
-    res.status(404).json({ error: 'pose inconnue' });
-    return;
-  }
-  deletePoseAsset(parsed.variant, parsed.pose.key);
-  poller.refresh();
-  res.json({ ok: true });
 });
 
 /* -------------------------------- données --------------------------------- */

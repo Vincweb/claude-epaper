@@ -55,24 +55,35 @@ affichent toujours la même chose (pose, niveau, stats).
     que voit la dalle ; en dessous (dt < 0,5) le web relie ces valeurs par
     Catmull-Rom (corps), saccades rapides (regard), paupière progressive,
     tremblement sinusoïdal. ⚠ Toute courbe doit PASSER par les valeurs aux
-    secondes entières : les GIF e-paper doivent rester identiques au bit près.
-  - `clawd.ts` : `clawdSvg(look, mono, frame)` → N&B pixel (dalle, crispEdges,
-    contour sticker) ou `clawd-color.ts` (web : orange Claude en dégradé, reflets,
-    ombre, accessoires animés en continu via `frame.t`, boucles de 1/2/4 s).
-  Côté serveur : `sprites.ts` = fichiers + génération (`generateSprite`),
+    secondes entières (un changement de timeline ne doit pas bouger la dalle).
+  - `pixel.ts` : moteur de sprites pixel — rectangles + clés de palette (teinte
+    web ET rendu N&B encre/papier/rien), `bitmap()`, contour « sticker »
+    géométrique en NIVEAUX (rectangles agrandis tracés dessous, du plus large au
+    plus étroit, toutes couches confondues : pas de filtre SVG).
+  - `clawd-grid.ts` + `clawd.ts` : **Clawd officiel en pixel art**, grille des
+    GIF officiels (corps 8×6 cellules, yeux 1×1 col. 1/6 ligne 1, bras 2×2
+    lignes 2-3, 4 pattes 1×2 col. 0/2/5/7 ; 1 cellule = 7 px de dalle, carré
+    `0 0 118 118`). Un seul dessin, deux palettes : web orange `#D97757` +
+    contour sticker blanc ; dalle = Clawd blanc cerné d'un liseré noir 2 px,
+    façon Tamagotchi. Expressions minimalistes (points, traits, arcs).
+    `ANCHORS` = points d'accroche.
+  - `clawd-props.ts` : accessoires et chapeaux en bitmaps, placés depuis
+    `ANCHORS` (trait `k` intégré, animés via `frame.t` / `frame.step`, boucles
+    1/2/4 s). Détails fins et flottants (Z, notes, pluie…) : couche `O_THIN`,
+    encre pleine sur la dalle (`solid`), sans liseré.
+  ⚠ `LOOK_PARTS` : retirer une pièce = lui donner un alias dans `LEGACY`
+  (`look.ts`) — les looks enregistrés ne doivent pas retomber sur le défaut.
+  Côté serveur : `sprites.ts` = génération + cache (`generateSprite`),
   `raster.ts` = resvg + police.
 - **Web = rendu vectoriel LIVE** (`components/ClawdLive.tsx`) : un seul
   `requestAnimationFrame` partagé, `idleFrame(Date.now()/1000)` → en phase avec
   la dalle, `innerHTML` mis à jour seulement si l'image change, regard qui suit
   le pointeur (`gaze`), `prefers-reduced-motion` respecté. Utilisé par l'écran,
-  la connexion, la galerie (volet web) et l'aperçu de l'éditeur — sauf si un
-  fichier web est uploadé (`state.poseWebUpload`) : affiché tel quel.
-- **Sprites de poses**, par priorité : fichier uploadé (`CONFIG_DIR/sprites/`) →
-  look composé dans l'éditeur (généré) → défaut embarqué
-  `server/sprites/epaper/<key>.gif` → look de la pose (généré). e-paper :
-  GIF 118×118 N&B 1 img/s (1:1/pixelated). web : PNG 480×480 couleur fixe,
-  généré à la demande (téléchargement, widget iOS) — pas de défaut embarqué.
-  `scripts/gen-sprites.mjs` régénère les défauts e-paper avec le même générateur.
+  la connexion, la galerie (volet web) et l'aperçu de l'éditeur.
+- **Sprites de poses = toujours GÉNÉRÉS depuis le look** (look composé dans
+  l'éditeur, sinon celui de la pose) — plus d'import de fichiers ni de défauts
+  embarqués. e-paper : GIF 118×118 N&B 1 img/s (1:1/pixelated). web : PNG
+  480×480 couleur fixe (téléchargement, widget iOS). Quelques ms, cache par look.
 - `mascot.ts` : logique de pose partagée, `selectPose`/`forcedPose`, stats,
   niveau. **Aucune pose de rotation codée** : `SHUFFLE_POOL` est vide, la rotation
   vient des humeurs perso. `SPECIAL_POSES` = poses de base (Tranquille par défaut
@@ -93,16 +104,16 @@ affichent toujours la même chose (pose, niveau, stats).
 - `GET /render.png?layout=horizontal|vertical&rotate=&scale=` — PNG N&B de la
   dalle (auth ; boucle locale exemptée). L'aperçu web force `rotate=0` et se
   rafraîchit chaque seconde (animations). Anciennes valeurs de layout acceptées.
-- `GET /poses` (liste + flags `special`/`userAdded`/animé/personnalisé) ·
-  `GET|PUT|DELETE /poses/:variant/:key` (`variant` = `epaper`|`web`) — fichiers de
-  poses ; `PUT` reçoit le PNG/GIF en corps brut (galerie Humeurs).
+- `GET /poses` (liste + look + flags `special`/`userAdded`/`lookCustom`/animé,
+  catalogue des pièces) · `GET /poses/:variant/:key` (`variant` = `epaper`|`web`)
+  — sprite généré (téléchargement, widget iOS ; route publique).
 - `POST /poses` `{title}` (ajoute une humeur de rotation) · `PUT /poses/:key`
   `{title}` (renomme, base ou perso) · `DELETE /poses/:key` (supprime une perso).
   Persistées dans `CONFIG_DIR/poses.json` (`server/src/poses.ts`).
 - `GET /poses/preview?variant=&eyes=&mouth=&accessory=&overhead=&motion=&size=`
   (aperçu généré, rien d'enregistré) · `PUT /poses/:key/look` `{look}` (enregistre
-  le look, retire les uploads de la pose) · `DELETE /poses/:key/look`. ⚠ Ces
-  routes sont déclarées **avant** `/poses/:variant/:key` (même forme d'URL).
+  le look) · `DELETE /poses/:key/look`. ⚠ Ces routes sont déclarées **avant**
+  `GET /poses/:variant/:key` (même forme d'URL).
 - `GET /usage/stream` (SSE), `GET /usage`, `GET /config`, `PUT /config`.
 - `POST /pose/shuffle` · `POST /pose/reset` — pose manuelle.
 - `POST /auth/register/{options,verify}` · `/auth/login/{options,verify}` ·
@@ -125,7 +136,6 @@ make dev         # hot-reload (dev)
 npm run dev      # web (Vite :5321) + API (:8787)
 npm run build    # web + serveur
 node scripts/gen-assets.mjs    # régénère les visuels docs/ (build serveur requis)
-node scripts/gen-sprites.mjs   # régénère les sprites e-paper par défaut (build serveur requis)
 ```
 
 ## Conventions & pièges
@@ -154,7 +164,7 @@ node scripts/gen-sprites.mjs   # régénère les sprites e-paper par défaut (bu
 ## Structure
 
 ```
-server/src/  index · poller · render · look · idle · clawd · clawd-color · sprites · raster · mascot · poses · auth · credentials · usage · config · routes/api
+server/src/  index · poller · render · look · idle · pixel · clawd-grid · clawd · clawd-props · sprites · raster · mascot · poses · auth · credentials · usage · config · routes/api
 server/fonts/  Tiny5 (police pixel embarquée pour resvg, OFL)
 web/src/     App · api · lib/{usage,clawd} · pages/* · components/* (dont ClawdLive, PoseEditor)
 scripts/     epaper_push.py · self-update.sh · gen-assets.mjs · *.service

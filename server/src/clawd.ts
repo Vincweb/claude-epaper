@@ -1,226 +1,176 @@
-import { clawdColor } from './clawd-color.js';
+import { ANCHORS, BX, BY, C } from './clawd-grid.js';
+import { PROP_PALETTE, propLayers } from './clawd-props.js';
 import { REST, type IdleFrame } from './idle.js';
-import type { ClawdAccessory, ClawdEyes, ClawdMouth, ClawdOverhead, Look } from './look.js';
+import type { ClawdEyes, ClawdMouth, Look } from './look.js';
+import { INK, PAPER, bitmap, renderLayers, shift, type Layer, type Mode, type Rect, type Ring, type Swatch } from './pixel.js';
 
 /* ------------------------------------------------------------------------- *
- * Sprite vectoriel Clawd (viewBox 0 -15 240 240) — module ISOMORPHE : le serveur
- * s'en sert pour la dalle et les sprites générés, le web pour le rendu live.
- * Chaque dessin reçoit une image de la couche idle (`idle.ts`) : c'est ce qui
- * l'anime. Ce fichier = version N&B (dalle) ; couleur → `clawd-color.ts`.
+ * Clawd en PIXEL ART, sur la grille des GIF officiels de Claude Code (le Clawd
+ * qui jongle, agite le drapeau, se tourne vers son outil) :
+ *   corps 8×6 cellules · yeux 1×1 (colonnes 1 et 6, ligne 1)
+ *   bras 2×2 (lignes 2-3) · 4 pattes 1×2 (colonnes 0, 2, 5, 7)
+ * Une cellule = 7 px de dalle : de gros pixels, lisibles sur l'e-ink.
+ * Module ISOMORPHE : la dalle (N&B) et le web (couleur, 60 img/s) dessinent
+ * avec CE code, seule la palette change. Chaque dessin reçoit une image de la
+ * couche idle (`idle.ts`). Unités : px de dalle ; en N&B tout est arrondi.
+ *
+ * N&B = Clawd blanc cerné d'un liseré noir, façon Tamagotchi, sur le papier.
+ * Web = orange Claude + contour sticker blanc.
  * ------------------------------------------------------------------------- */
 
-export const INK = '#000000';
-export const PAPER = '#ffffff';
+export { ANCHORS, INK, PAPER };
 
-/** Un pixel du carré mascotte e-paper (118 px) en unités de viewBox (240 de large). */
-export const PX = 240 / 118;
+/** Le carré mascotte : 118×118 px de dalle, 1 unité = 1 px. */
+export const CLAWD_VIEWBOX = '0 0 118 118';
 
-function eyesSvg(eyes: ClawdEyes): string {
-  switch (eyes) {
-    case 'wide':
-      return `<rect x="87" y="54" width="18" height="20" fill="${INK}"/><rect x="135" y="54" width="18" height="20" fill="${INK}"/>`;
-    case 'sleep':
-      return `<rect x="88" y="64" width="16" height="5" fill="${INK}"/><rect x="136" y="64" width="16" height="5" fill="${INK}"/>`;
-    case 'happy':
-      return `<g fill="none" stroke="${INK}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"><path d="M89 58 L103 66 L89 74"/><path d="M151 58 L137 66 L151 74"/></g>`;
-    case 'spiral': {
-      const spiral = (cx: number, cy: number) => {
-        let d = `M${cx} ${cy}`;
-        for (let i = 1; i <= 26; i++) {
-          const t = i / 26;
-          const a = t * 2.2 * 2 * Math.PI;
-          const r = t * 9;
-          d += ` L${(cx + Math.cos(a) * r).toFixed(1)} ${(cy + Math.sin(a) * r).toFixed(1)}`;
-        }
-        return d;
-      };
-      return `<g fill="none" stroke="${INK}" stroke-width="3.5" stroke-linecap="round"><path d="${spiral(96, 66)}"/><path d="${spiral(144, 66)}"/></g>`;
-    }
-    case 'wink':
-      return `<rect x="89" y="58" width="14" height="16" fill="${INK}"/><path d="M137 62 Q144 71 151 62" fill="none" stroke="${INK}" stroke-width="6" stroke-linecap="round"/>`;
-    case 'cross':
-      return `<g stroke="${INK}" stroke-width="6" stroke-linecap="round"><path d="M87 57 l16 16 M103 57 l-16 16"/><path d="M135 57 l16 16 M151 57 l-16 16"/></g>`;
-    case 'shades':
-      return `<rect x="82" y="56" width="24" height="18" rx="4" fill="${INK}"/><rect x="134" y="56" width="24" height="18" rx="4" fill="${INK}"/><rect x="104" y="62" width="30" height="4" fill="${INK}"/>`;
-    default: // square
-      return `<rect x="89" y="58" width="14" height="16" fill="${INK}"/><rect x="137" y="58" width="14" height="16" fill="${INK}"/>`;
-  }
+/** Palette : clé → teinte web + rendu N&B. */
+export const PALETTE: Record<string, Swatch> = {
+  B: { color: '#D97757', mono: 'paper' }, // corps (orange Claude)
+  E: { color: '#1C1714', mono: 'ink' }, // yeux, bouche
+  H: { color: '#F09A86', mono: null }, // joues (web seulement)
+  T: { color: '#E8685C', mono: null }, // langue (web seulement)
+  W: { color: '#FFFFFF', mono: 'paper' }, // reflet, blanc
+  ...PROP_PALETTE, // accessoires (clawd-props.ts)
+};
+
+/** Contour sticker : web = blanc 3 px ; dalle = liseré noir 2 px (il laisse
+ * 3 px d'air entre les pattes, espacées d'une cellule). */
+export const STICKER: Partial<Record<Mode, readonly Ring[]>> = {
+  color: [[3, 'paper']],
+  mono: [[2, 'ink']],
+};
+
+/** Rectangle en cellules du corps (origine = coin haut-gauche du corps). */
+const cell = (cx: number, cy: number, w = 1, h = 1, k = 'B'): Rect => ({
+  x: BX + cx * C,
+  y: BY + cy * C,
+  w: w * C,
+  h: h * C,
+  k,
+});
+/** Rectangle en px, relatif au coin du corps (détails plus fins qu'une cellule). */
+const px = (x: number, y: number, w: number, h: number, k = 'E', opacity?: number): Rect => ({
+  x: BX + x,
+  y: BY + y,
+  w,
+  h,
+  k,
+  opacity,
+});
+
+/* --------------------------------- visage --------------------------------- *
+ * Minimaliste, comme les GIF : des points, des traits, des arcs. Les deux yeux
+ * sont dans les cellules (1, 1) et (6, 1) : x 7→14 et 42→49, y 7→14.
+ * -------------------------------------------------------------------------- */
+
+const EYE_L = 7;
+const EYE_R = 42;
+const EYE_Y = 7;
+
+/** Œil carré officiel (1 cellule), fermé progressivement par la paupière : il
+ * s'écrase autour de son centre jusqu'à un trait de 2 px (dalle : 0 ou 1). */
+function dot(x: number, lid: number): Rect {
+  const hh = Math.max(2, C * (1 - lid));
+  return px(x, EYE_Y + (C - hh) / 2, C, hh);
 }
 
-/** Yeux fermés d'un clignement — seuls les yeux « ouverts » simples clignent
- * (heureux, spirales, croix, lunettes… n'ont pas de paupière à fermer). */
-function blinkSvg(eyes: ClawdEyes): string | null {
-  if (eyes === 'square') return eyesSvg('sleep');
-  if (eyes === 'wide')
-    return `<rect x="87" y="63" width="18" height="5" fill="${INK}"/><rect x="135" y="63" width="18" height="5" fill="${INK}"/>`;
-  if (eyes === 'wink')
-    return `<rect x="88" y="64" width="16" height="5" fill="${INK}"/><path d="M137 62 Q144 71 151 62" fill="none" stroke="${INK}" stroke-width="6" stroke-linecap="round"/>`;
-  return null;
-}
+/** Trait fermé (dodo, clin d'œil) : 1 cellule de large, 2 px, bas de l'œil. */
+const bar = (x: number) => px(x, EYE_Y + 4, C, 2);
 
-function mouthSvg(mouth?: ClawdMouth): string {
-  if (mouth === 'line') return `<rect x="104" y="98" width="32" height="4" rx="1" fill="${INK}"/>`;
-  if (mouth === 'open') return `<rect x="108" y="92" width="24" height="16" rx="4" fill="${INK}"/>`;
-  if (mouth === 'kiss') return `<ellipse cx="114" cy="100" rx="5" ry="4" fill="${INK}"/>`;
-  return '';
-}
+/** Arc « ⌒ » des yeux contents (GIF du drapeau) : 7 px, trait de 2 px. */
+const ARC = ['.XXXXX.', 'XXXXXXX', 'XX...XX'];
+const arc = (x: number) => bitmap(ARC, BX + x, BY + EYE_Y + 2, 1).map((r) => ({ ...r, k: 'E' }));
 
-function sparkleSvg(cx: number, cy: number, color: string, len = 12, spin = 0): string {
-  let s = '';
-  for (let i = 0; i < 8; i++)
-    s += `<rect x="${cx - 2}" y="${cy - len}" width="4" height="${len}" rx="2" fill="${color}" transform="rotate(${i * 45 + spin} ${cx} ${cy})"/>`;
-  return `${s}<circle cx="${cx}" cy="${cy}" r="3" fill="${color}"/>`;
-}
+/** Croix « × » (K.-O.) : 7×7, traits de 2-3 px. */
+const X = ['XX...XX', 'XXX.XXX', '.XXXXX.', '..XXX..', '.XXXXX.', 'XXX.XXX', 'XX...XX'];
+const cross = (x: number) => bitmap(X, BX + x, BY + EYE_Y, 1).map((r) => ({ ...r, k: 'E' }));
 
-const HEART_GRID = ['.XX.XX.', 'XXXXXXX', 'XXXXXXX', '.XXXXX.', '..XXX..', '...X...'];
-function pixelHeartSvg(x: number, y: number, px: number, fill: string): string {
-  let s = '';
-  HEART_GRID.forEach((row, r) =>
-    row.split('').forEach((c, col) => {
-      if (c === 'X') s += `<rect x="${x + col * px}" y="${y + r * px}" width="${px}" height="${px}" fill="${fill}"/>`;
-    }),
-  );
-  return s;
-}
-
-/** Accessoires tenus/posés, en N&B. `step` =
- * seconde courante : curseur qui clignote, vapeur qui ondule, cœur qui bat… */
-function accessorySvg(kind: ClawdAccessory | undefined, step: number): string {
-  if (!kind || kind === 'none') return '';
-  const odd = step % 2 === 1;
+function eyes(kind: ClawdEyes, lid: number): Rect[] {
   switch (kind) {
-    case 'laptop': {
-      const cursor = odd ? '' : `<rect x="116" y="127" width="4" height="3" fill="${INK}"/>`;
-      return `<rect x="78" y="138" width="84" height="10" fill="${PAPER}" stroke="${INK}" stroke-width="2"/><rect x="86" y="104" width="68" height="36" fill="${PAPER}" stroke="${INK}" stroke-width="2"/><rect x="90" y="108" width="60" height="28" fill="${PAPER}" stroke="${INK}" stroke-width="1.5"/><rect x="94" y="113" width="26" height="3" fill="${INK}"/><rect x="94" y="120" width="38" height="3" fill="${INK}"/><rect x="94" y="127" width="20" height="3" fill="${INK}"/>${cursor}`;
-    }
-    case 'coffee': {
-      const rise = odd ? -2 * PX : 0; // la vapeur monte d'un pixel, redescend
-      return `
-        <ellipse cx="190" cy="105" rx="22" ry="4" fill="${PAPER}" stroke="${INK}" stroke-width="1.5"/>
-        <rect x="174" y="80" width="30" height="22" rx="3" fill="${PAPER}" stroke="${INK}" stroke-width="2"/>
-        <line x1="175" y1="87" x2="203" y2="87" stroke="${INK}" stroke-width="1.5"/>
-        <path d="M204 84 q10 1 10 7 q0 6 -10 7" fill="none" stroke="${INK}" stroke-width="2"/>
-        <g fill="none" stroke="${INK}" stroke-width="1.5" stroke-linecap="round" transform="translate(0 ${rise})">
-          <path d="M182 76 q3 -4 0 -8"/><path d="M190 76 q${odd ? -3 : 3} -4 0 -8"/><path d="M198 76 q3 -4 0 -8"/>
-        </g>`;
-    }
-    case 'ball':
-      return `<circle cx="172" cy="156" r="18" fill="${PAPER}" stroke="${INK}" stroke-width="2"/><polygon points="172,147 180,153 177,163 167,163 164,153" fill="${INK}"/><path d="M158 150 l4 5 M186 150 l-4 5 M166 170 l3 -4 M178 170 l-3 -4" stroke="${INK}" stroke-width="2"/>`;
-    case 'wand': {
-      // Manche diagonal + étoile 5 branches à la pointe + 2 étincelles qui alternent.
-      const star = '223,38 227,50 238,50 229,58 233,70 223,62 213,70 217,58 208,50 219,50';
-      const glint = INK;
-      return `
-        <rect x="194" y="64" width="6" height="40" rx="3" fill="${INK}" transform="rotate(38 197 84)"/>
-        <polygon points="${star}" fill="${PAPER}" stroke="${INK}" stroke-width="2" stroke-linejoin="round"/>
-        ${odd ? `<circle cx="236" cy="66" r="2.5" fill="${glint}"/>` : `<circle cx="208" cy="40" r="2.5" fill="${glint}"/>`}`;
-    }
-    case 'heart': {
-      const px = odd ? 6 : 5; // battement : le cœur gonfle une seconde sur deux
-      return pixelHeartSvg(217.5 - 3.5 * px, 77 - 3 * px, px, INK);
-    }
-    case 'skateboard': {
-      const deck = PAPER;
-      const wheel = PAPER;
-      return `
-        <rect x="60" y="156" width="120" height="10" rx="5" fill="${deck}" stroke="${INK}" stroke-width="2"/>
-        <rect x="80" y="166" width="6" height="5" fill="${INK}"/><rect x="154" y="166" width="6" height="5" fill="${INK}"/>
-        <rect x="70" y="169" width="20" height="16" rx="3" fill="${wheel}" stroke="${INK}" stroke-width="2"/>
-        <rect x="150" y="169" width="20" height="16" rx="3" fill="${wheel}" stroke="${INK}" stroke-width="2"/>
-        <path d="M72 171 l16 12 M88 171 l-16 12 M152 171 l16 12 M168 171 l-16 12" stroke="${INK}" stroke-width="1.5"/>`;
-    }
-    default:
-      return '';
+    case 'happy':
+      return [...arc(EYE_L), ...arc(EYE_R)];
+    case 'sleep':
+      return [bar(EYE_L), bar(EYE_R)];
+    case 'wink':
+      return [dot(EYE_L, lid), bar(EYE_R)];
+    case 'cross':
+      return [...cross(EYE_L), ...cross(EYE_R)];
+    case 'shades':
+      // Une barre noire d'un côté à l'autre, deux verres, un reflet.
+      return [px(4, EYE_Y, 14, 6), px(38, EYE_Y, 14, 6), px(18, EYE_Y + 1, 20, 2), px(6, EYE_Y + 1, 3, 2, 'W', 0.6), px(40, EYE_Y + 1, 3, 2, 'W', 0.6)];
+    default: // square — les yeux officiels
+      return [dot(EYE_L, lid), dot(EYE_R, lid)];
   }
 }
 
-/** Objets au-dessus de la tête — dessinés pour tenir dans la viewBox standard. */
-function overheadSvg(kind: ClawdOverhead | undefined, step: number): string {
-  if (!kind || kind === 'none') return '';
-  const odd = step % 2 === 1;
-  if (kind === 'zzz') {
-    // Les Z apparaissent un à un (z, zZ, zZZ) puis s'effacent : boucle de 4 s.
-    const zs = [
-      `<text x="158" y="54" font-size="14">z</text>`,
-      `<text x="170" y="40" font-size="18">Z</text>`,
-      `<text x="186" y="24" font-size="24">Z</text>`,
-    ];
-    const shown = [1, 2, 3, 0][step % 4];
-    return shown ? `<g fill="${INK}" font-family="monospace" font-weight="bold">${zs.slice(0, shown).join('')}</g>` : '';
-  }
-  if (kind === 'sparkle-hat')
-    return `<rect x="90" y="34" width="60" height="8" fill="${PAPER}" stroke="${INK}" stroke-width="2"/><rect x="100" y="20" width="40" height="14" fill="${PAPER}" stroke="${INK}" stroke-width="2"/><rect x="110" y="10" width="20" height="10" fill="${PAPER}" stroke="${INK}" stroke-width="2"/>${sparkleSvg(120, 7, INK, 6, odd ? 22.5 : 0)}`;
-  if (kind === 'party')
-    return `<polygon points="120,4 102,44 138,44" fill="${PAPER}" stroke="${INK}" stroke-width="2"/><circle cx="120" cy="4" r="5" fill="${INK}"/><circle cx="114" cy="22" r="3" fill="${INK}"/><circle cx="125" cy="32" r="3" fill="${INK}"/>`;
-  if (kind === 'sun') {
-    const cx = 200, cy = 26, r = 13;
-    let s = '';
-    for (let i = 0; i < 8; i++)
-      s += `<rect x="${cx - 1.5}" y="${cy - r - 8}" width="3" height="7" rx="1.5" fill="${INK}" transform="rotate(${i * 45 + (odd ? 22.5 : 0)} ${cx} ${cy})"/>`;
-    return `${s}<circle cx="${cx}" cy="${cy}" r="${r}" fill="${PAPER}" stroke="${INK}" stroke-width="2"/>`;
-  }
-  if (kind === 'umbrella') {
-    const cx = 120, base = 42, r = 40;
-    const fall = odd ? 2 * PX : 0; // les gouttes tombent d'un cran une seconde sur deux
-    return `<path d="M${cx - r} ${base} A${r} ${r} 0 0 1 ${cx + r} ${base} Z" fill="${PAPER}" stroke="${INK}" stroke-width="2"/><path d="M${cx} ${base - r} L${cx - r} ${base} M${cx} ${base - r} L${cx} ${base} M${cx} ${base - r} L${cx + r} ${base}" stroke="${INK}" stroke-width="2"/><rect x="${cx - 1.5}" y="${base}" width="3" height="8" fill="${INK}"/><g stroke="${INK}" stroke-width="3" stroke-linecap="round" transform="translate(0 ${fall})"><path d="M64 26 l0 7"/><path d="M176 24 l0 7"/><path d="M74 40 l0 7"/><path d="M170 12 l0 7"/></g>`;
-  }
-  return '';
+/** Bouches : minuscules, centrées sous les yeux (le Clawd officiel n'en a pas). */
+function mouth(kind: ClawdMouth | undefined): Rect[] {
+  if (kind === 'line') return [px(24, 23, 8, 2)];
+  if (kind === 'open') return [px(25, 21, 6, 6), px(26, 25, 4, 2, 'T')];
+  if (kind === 'kiss') return [px(30, 22, 4, 4)];
+  return [];
 }
+
+/** Joues roses (web) pour les mines joyeuses ou tendres. */
+function blush(look: Look): Rect[] {
+  if (!['happy', 'wink'].includes(look.eyes) && look.mouth !== 'kiss') return [];
+  return [px(2, 16, 6, 3, 'H'), px(48, 16, 6, 3, 'H')];
+}
+
+/* ------------------------------- accessoires ------------------------------- */
 
 /** Des accessoires s'animent-ils seuls (indépendamment du mouvement du corps) ?
- * Leurs boucles font 2 ou 4 s ; le sprite boucle alors sur un multiple de 4 s. */
+ * Leurs boucles font 1, 2 ou 4 s ; le sprite boucle alors sur un multiple de 4 s. */
 export function hasAnimatedExtras(look: Look): boolean {
   return (
-    ['zzz', 'sparkle-hat', 'sun', 'umbrella', 'party'].includes(look.overhead ?? 'none') ||
-    ['laptop', 'coffee', 'wand', 'heart'].includes(look.accessory ?? 'none')
+    ['zzz', 'sparkle-hat', 'sun', 'umbrella', 'party', 'headphones', 'lightbulb', 'bubble'].includes(look.overhead ?? 'none') ||
+    ['laptop', 'coffee', 'wand', 'heart', 'flag'].includes(look.accessory ?? 'none')
   );
 }
 
-/**
- * Clawd dans une image de la couche idle. Deux dessins des MÊMES pièces :
- *  - N&B (dalle) : pixel art 118 px, contour « sticker », chaque décalage arrondi
- *    au pixel (pas de bord qui « respire » d'un demi-pixel) ;
- *  - couleur (web, GIF) : `clawd-color.ts` — dégradés, reflets, mouvement continu.
- */
+/* ---------------------------------- corps ---------------------------------- */
+
+/** Toutes les couches de Clawd pour une image de la couche idle. */
+export function clawdLayers(look: Look, mode: Mode, f: IdleFrame = REST): Layer[] {
+  const r = (v: number) => (mode === 'mono' ? Math.round(v) : v);
+  const x = r(f.dx);
+  const feet = r(f.bob);
+  const torsoY = r(f.bob + f.squash); // le corps se tasse sur ses pattes
+  // Pattes : partent de l'intérieur du corps (cachées dessous) → le tassement les raccourcit.
+  const legs = [0, 2, 5, 7].map((c): Rect => ({ x: BX + c * C, y: BY + 5 * C, w: C, h: 3 * C, k: 'B' }));
+  const armL = { ...cell(-2, 2, 2, 2), y: ANCHORS.armTop + r(f.armL) };
+  // Drapeau : le bras droit se lève tout droit — une main posée au-dessus de la tête (GIF officiel).
+  const armR =
+    look.accessory === 'flag'
+      ? { ...cell(6, -1, 1, 1), y: BY - C + Math.min(0, r(f.armR)) }
+      : { ...cell(8, 2, 2, 2), y: ANCHORS.armTop + r(f.armR) };
+  const torso = [armL, armR, cell(0, 0, 8, 6)];
+  const lid = mode === 'mono' ? (f.blink >= 0.5 ? 1 : 0) : f.blink;
+  const face = [
+    ...(mode === 'color' ? blush(look) : []),
+    ...shift(eyes(look.eyes, lid), r(f.lookX), r(f.lookY)),
+    ...mouth(look.mouth),
+  ];
+  // Chapeaux et objets tenus suivent le haut du corps ; skate et ballon, le sol.
+  const props = propLayers(look, mode, f, r(f.armR));
+  const move = (layers: Layer[], dy: number) => layers.map((l) => ({ ...l, rects: shift(l.rects, x, dy) }));
+  return [
+    { rects: shift(legs, x, feet), outline: STICKER },
+    { rects: shift(torso, x, torsoY), outline: STICKER },
+    { rects: shift(face, x, torsoY) },
+    ...move(props.ground, feet),
+    ...move(props.head, torsoY),
+  ];
+}
+
+/** Clawd dans une image de la couche idle : N&B (dalle) ou couleur (web). */
 export function clawdSvg(look: Look, mono: boolean, f: IdleFrame = REST): string {
-  return mono ? clawdMono(look, f) : clawdColor(look, f);
+  const mode: Mode = mono ? 'mono' : 'color';
+  return renderLayers(clawdLayers(look, mode, f), PALETTE, mode);
 }
 
-function clawdMono(look: Look, f: IdleFrame): string {
-  const u = (px: number) => Math.round(px) * PX;
-  const x = u(f.dx);
-  const top = u(f.bob + f.squash); // haut du corps (tassement compris)
-  const feet = u(f.bob); // les pieds ne suivent que le saut
-  const legH = 22 + feet - top;
-  const body = PAPER;
-  const eyes = (f.blink >= 0.5 && blinkSvg(look.eyes)) || eyesSvg(look.eyes);
-  const torso = `
-    <rect x="60" y="40" width="120" height="88" fill="${body}"/>
-    <rect x="42" y="${80 + u(f.armL)}" width="18" height="26" fill="${body}"/>
-    <rect x="180" y="${80 + u(f.armR)}" width="18" height="26" fill="${body}"/>
-    <g transform="translate(${u(f.lookX)} ${u(f.lookY)})">${eyes}</g>${mouthSvg(look.mouth)}`;
-  const legs = `
-    <rect x="${88 + x}" y="${128 + top}" width="12" height="${legH}" fill="${body}"/>
-    <rect x="${140 + x}" y="${128 + top}" width="12" height="${legH}" fill="${body}"/>`;
-  // Accessoires & objets rendus HORS du filtre mono : line-art net et fin, non
-  // épaissi par la dilatation qui donne au corps son contour « sticker ».
-  // Ce qui est posé au sol (skate, ballon) suit les pieds, le reste suit le corps.
-  const grounded = look.accessory === 'skateboard' || look.accessory === 'ball';
-  const acc = accessorySvg(look.accessory, f.step);
-  const extras = `<g transform="translate(${x} ${top})">${overheadSvg(look.overhead, f.step)}${grounded ? '' : acc}</g>${grounded ? `<g transform="translate(${x} ${feet})">${acc}</g>` : ''}`;
-  return `<g filter="url(#mono)"><g transform="translate(${x} ${top})">${torso}</g>${legs}</g>${extras}`;
-}
-
-// radius élevé : à petite taille le contour resterait trop fin pour l'e-ink.
-export const MONO_FILTER = `<filter id="mono" x="-25%" y="-25%" width="150%" height="150%"><feMorphology in="SourceAlpha" operator="dilate" radius="6" result="d"/><feFlood flood-color="${INK}" result="w"/><feComposite in="w" in2="d" operator="in" result="o"/><feMerge><feMergeNode in="o"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
-
-/** Cadrage commun : Clawd dans un carré, un peu d'air au-dessus pour les chapeaux. */
-export const CLAWD_VIEWBOX = '0 -15 240 240';
-
-/** Clawd seul dans un canvas CARRÉ (fond transparent) — base des sprites.
- * N&B : `crispEdges` (aucun gris, binarisation e-ink fidèle). Couleur : anti-aliasé. */
+/** Clawd seul dans le carré 118×118, fond transparent — base des sprites.
+ * `crispEdges` : c'est du pixel art. */
 export function clawdStandaloneSvg(look: Look, mono: boolean, f: IdleFrame = REST): string {
-  const crisp = mono ? ' shape-rendering="crispEdges" text-rendering="optimizeSpeed"' : '';
-  const defs = mono ? `<defs>${MONO_FILTER}</defs>` : '';
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${CLAWD_VIEWBOX}"${crisp}>${defs}${clawdSvg(look, mono, f)}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${CLAWD_VIEWBOX}" shape-rendering="crispEdges">${clawdSvg(look, mono, f)}</svg>`;
 }

@@ -29,8 +29,6 @@ export interface PollerState {
   ageLabel: string;
   /** Pose forcée manuellement (bouton shuffle) ? */
   poseManual: boolean;
-  /** Fichier web uploadé pour cette pose → affiché tel quel (sinon rendu live). */
-  poseWebUpload: boolean;
 }
 
 export interface AppConfig {

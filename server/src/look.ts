@@ -4,10 +4,20 @@
  * vectoriel live). Ne rien importer ici qui ne tourne pas dans un navigateur.
  */
 
-export type ClawdEyes = 'square' | 'wide' | 'happy' | 'sleep' | 'spiral' | 'wink' | 'shades' | 'cross';
+export type ClawdEyes = 'square' | 'happy' | 'sleep' | 'wink' | 'shades' | 'cross';
 export type ClawdMouth = 'none' | 'line' | 'open' | 'kiss';
-export type ClawdAccessory = 'none' | 'laptop' | 'coffee' | 'ball' | 'wand' | 'heart' | 'skateboard';
-export type ClawdOverhead = 'none' | 'party' | 'zzz' | 'sparkle-hat' | 'sun' | 'umbrella';
+export type ClawdAccessory = 'none' | 'laptop' | 'coffee' | 'ball' | 'wand' | 'heart' | 'skateboard' | 'flag';
+export type ClawdOverhead =
+  | 'none'
+  | 'party'
+  | 'zzz'
+  | 'sparkle-hat'
+  | 'sun'
+  | 'umbrella'
+  | 'headphones'
+  | 'hardhat'
+  | 'lightbulb'
+  | 'bubble';
 /** Animation idle de la pose (cf. idle.ts) — tourne en continu, sans pause. */
 export type ClawdMotion = 'idle' | 'bounce' | 'sway' | 'nervous' | 'shake' | 'sleep' | 'none';
 
@@ -28,13 +38,12 @@ export interface Pose extends Look {
 
 /** Catalogue des pièces (libellés FR) — alimente l'éditeur de la galerie Humeurs. */
 export const LOOK_PARTS = {
+  // Jeu volontairement minimaliste, comme les GIF officiels (points, traits, arcs).
   eyes: {
     square: 'Carrés',
-    wide: 'Grands ouverts',
     happy: 'Heureux',
     sleep: 'Fermés',
     wink: "Clin d'œil",
-    spiral: 'Spirales',
     shades: 'Lunettes noires',
     cross: 'Croix',
   },
@@ -47,6 +56,7 @@ export const LOOK_PARTS = {
     wand: 'Baguette',
     heart: 'Cœur',
     skateboard: 'Skate',
+    flag: 'Drapeau',
   },
   overhead: {
     none: 'Rien',
@@ -55,6 +65,10 @@ export const LOOK_PARTS = {
     zzz: 'Zzz',
     sun: 'Soleil',
     umbrella: 'Parapluie',
+    headphones: 'Casque audio',
+    hardhat: 'Casque de chantier',
+    lightbulb: 'Ampoule',
+    bubble: 'Bulle « … »',
   },
   motion: {
     idle: 'Respire',
@@ -75,8 +89,18 @@ export const LOOK_PARTS = {
 
 type LookPart = keyof typeof LOOK_PARTS;
 
-const pick = <P extends LookPart>(part: P, v: unknown): keyof (typeof LOOK_PARTS)[P] | undefined =>
-  typeof v === 'string' && Object.hasOwn(LOOK_PARTS[part], v) ? (v as keyof (typeof LOOK_PARTS)[P]) : undefined;
+/** Pièces retirées du catalogue → leur remplaçante : un look enregistré avec
+ * une ancienne valeur garde une tête proche au lieu de retomber sur le défaut.
+ * Retirer une pièce = TOUJOURS lui donner un alias ici. */
+const LEGACY: { [P in LookPart]?: Record<string, keyof (typeof LOOK_PARTS)[P]> } = {
+  eyes: { wide: 'square', spiral: 'cross' },
+};
+
+const pick = <P extends LookPart>(part: P, v: unknown): keyof (typeof LOOK_PARTS)[P] | undefined => {
+  if (typeof v !== 'string') return undefined;
+  if (Object.hasOwn(LOOK_PARTS[part], v)) return v as keyof (typeof LOOK_PARTS)[P];
+  return (LEGACY[part] as Record<string, keyof (typeof LOOK_PARTS)[P]> | undefined)?.[v];
+};
 
 /** Valide un look reçu (API / fichier) : pièces inconnues ignorées, yeux carrés par défaut. */
 export function sanitizeLook(raw: unknown): Look {
@@ -111,7 +135,9 @@ function traitPick<P extends LookPart>(seed: string, part: P, pool: (keyof (type
 export function lookFromName(name: string): Look {
   const withExtra = trait(name, 'extra');
   return {
-    eyes: traitPick(name, 'eyes', ['square', 'square', 'happy', 'wide', 'wink', 'shades']),
+    // Même longueur et mêmes index qu'avant (« wide » remplacé sur place) : les
+    // têtes déjà tirées ne changent pas, sauf celles qui avaient « wide ».
+    eyes: traitPick(name, 'eyes', ['square', 'square', 'happy', 'square', 'wink', 'shades']),
     mouth: traitPick(name, 'mouth', ['none', 'none', 'line', 'open', 'kiss']),
     // Un seul extra la plupart du temps (accessoire OU chapeau) : silhouette lisible.
     accessory:

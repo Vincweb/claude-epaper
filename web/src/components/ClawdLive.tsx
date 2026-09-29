@@ -3,8 +3,8 @@ import { CLAWD_VIEWBOX, REST, clawdSvg, idleFrame, sanitizeLook, type IdleFrame 
 
 /*
  * Clawd dessiné EN DIRECT dans le navigateur : le même `idleFrame` + `clawdSvg`
- * que le serveur (dalle, sprites), évalués à chaque image (~60 img/s) — vectoriel,
- * anti-aliasé, net à toute taille. Même horloge que la dalle (`Date.now()`) :
+ * que le serveur (dalle, sprites), évalués à chaque image (~60 img/s) — pixel
+ * art vectoriel, net à toute taille. Même horloge que la dalle (`Date.now()`) :
  * l'écran et l'e-paper clignent au même moment.
  */
 
@@ -108,6 +108,8 @@ export function ClawdLive({
     <svg
       ref={ref}
       viewBox={CLAWD_VIEWBOX}
+      // Pixel art : bords nets, et pas de joints d'anti-aliasing entre cellules voisines.
+      shapeRendering="crispEdges"
       width={size}
       height={size}
       role="img"

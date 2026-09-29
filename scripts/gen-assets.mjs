@@ -37,8 +37,8 @@ const POSES = [
   { title: 'Sous la pluie', eyes: 'square', overhead: 'umbrella' },
   { title: 'Dodo', eyes: 'sleep', overhead: 'zzz', motion: 'sleep' },
   { title: 'Anniversaire', eyes: 'happy', overhead: 'sparkle-hat', motion: 'bounce' },
-  { title: 'Football', eyes: 'happy', accessory: 'ball' },
-  { title: 'Étourdi', eyes: 'spiral' },
+  { title: 'Victoire', eyes: 'happy', accessory: 'flag', motion: 'bounce' },
+  { title: 'Réfléchit', eyes: 'square', overhead: 'bubble' },
 ];
 
 function posesSheet() {
@@ -53,7 +53,7 @@ function posesSheet() {
     const f = idleFrame(p.motion ?? 'idle', 0.5, 1 / 60);
     cells += `<g transform="translate(${cx} ${cy})">
       <rect x="8" y="8" width="${cell - 16}" height="${cardH - 16}" rx="18" fill="#ffffff08" stroke="#ffffff14"/>
-      <svg x="${(cell - 160) / 2}" y="16" width="160" height="160" viewBox="${CLAWD_VIEWBOX}">${clawdSvg(p, false, f)}</svg>
+      <svg x="${(cell - 160) / 2}" y="16" width="160" height="160" viewBox="${CLAWD_VIEWBOX}" shape-rendering="crispEdges">${clawdSvg(p, false, f)}</svg>
       <text x="${cell / 2}" y="196" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="16" fill="#f5f0e8">${p.title}</text>
     </g>`;
   });

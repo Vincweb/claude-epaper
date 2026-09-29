@@ -1,4 +1,4 @@
-import { clawdSvg, INK, MONO_FILTER, PAPER } from './clawd.js';
+import { CLAWD_VIEWBOX, clawdSvg, INK, PAPER } from './clawd.js';
 import { idleFrame } from './idle.js';
 import { poller } from './poller.js';
 import { loadConfig } from './config.js';
@@ -14,7 +14,7 @@ function clawdSquare(pose: Pose, x: number, y: number, size: number, tick: numbe
   const asset = loadSprite('epaper', pose);
   if (asset)
     return `<image href="${spriteFrame(asset, tick)}" x="${x}" y="${y}" width="${size}" height="${size}" image-rendering="pixelated"/>`;
-  return `<svg x="${x}" y="${y}" width="${size}" height="${size}" viewBox="0 -15 240 240">${clawdSvg(pose, true, idleFrame(pose.motion, tick, 1))}</svg>`;
+  return `<svg x="${x}" y="${y}" width="${size}" height="${size}" viewBox="${CLAWD_VIEWBOX}">${clawdSvg(pose, true, idleFrame(pose.motion, tick, 1))}</svg>`;
 }
 
 /* ------------------------------------------------------------------------- *
@@ -28,7 +28,7 @@ function svgDoc(W: number, H: number, inner: string, rotate: 0 | 180, border: nu
   const frame = `<rect x="${border / 2}" y="${border / 2}" width="${W - border}" height="${H - border}" fill="none" stroke="${INK}" stroke-width="${border}"/>`;
   const content = `${inner}${frame}`;
   const body = rotate === 180 ? `<g transform="rotate(180 ${W / 2} ${H / 2})">${content}</g>` : content;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" shape-rendering="crispEdges" text-rendering="optimizeSpeed"><defs>${MONO_FILTER}</defs><rect width="${W}" height="${H}" fill="${PAPER}"/>${body}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" shape-rendering="crispEdges" text-rendering="optimizeSpeed"><rect width="${W}" height="${H}" fill="${PAPER}"/>${body}</svg>`;
 }
 
 export interface PanelData {
@@ -236,7 +236,7 @@ function stats(x: number, y: number, d: PanelData): string {
   return `${one(HEART, d.joie, x)}${one(APPLE, d.repu, x + 50)}`;
 }
 
-/** Horizontal 250×122 : mascotte 118×118 à gauche, infos à droite (x 128 → 244). */
+/** Horizontal 250×122 : mascotte 118×118 à gauche, infos à droite (x 129 → 244). */
 export function buildHorizontal(d: PanelData, rotate: 0 | 180): string {
   const W = 250, H = 122, x = 129, w = 115;
   const five = d.hasData ? d.five : null;

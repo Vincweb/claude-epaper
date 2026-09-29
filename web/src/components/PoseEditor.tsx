@@ -47,7 +47,6 @@ export function PoseEditor({
   const [look, setLook] = useState<Look>(pose.look);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const uploads = [pose.epaper.custom && 'e-paper', pose.web.custom && 'web'].filter(Boolean);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -123,11 +122,6 @@ export function PoseEditor({
           ))}
         </div>
 
-        {uploads.length > 0 && (
-          <p className="mt-4 text-xs text-[#e0956f]">
-            Générer remplacera ton fichier uploadé ({uploads.join(' + ')}).
-          </p>
-        )}
         {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-2">

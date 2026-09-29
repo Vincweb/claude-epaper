@@ -38,8 +38,8 @@ Le tout est incarné par **Clawd**, la mascotte crabe de Claude Code, qui change
 - 🦀 **Clawd, la mascotte** — une douzaine de poses (au travail, pause café le matin, dodo la nuit, anniversaire, bisou, au soleil, sous la pluie…), qui **tournent au fil de la journée**.
 - 🎮 **Stats Tamagotchi** — Énergie, Forme, Repu, Bonheur + un **niveau** qui monte avec le temps *et* avec ton usage.
 - 🖥️ **Rendu e-paper fidèle** — génère le PNG exact de la dalle (N&B, sans anti-aliasing) ; l'aperçu web montre pixel pour pixel ce que reçoit la dalle.
-- 🎞️ **Clawd vivant** — animé **en continu** (respire, cligne, jette des regards, sautille, tremble quand ça chauffe…) : pixel art 1 image/s sur la dalle, vectoriel fluide sur le web (orange Claude, reflets dans les yeux, yeux qui suivent ta souris) ; le point « online » clignote en direct.
-- 🎨 **Générateur d'humeurs** — dans la galerie, compose une humeur (yeux, bouche, accessoire, chapeau, animation) : son sprite e-paper animé est généré, et le web le dessine en direct. Une nouvelle humeur a d'office une tête tirée de son nom (idée empruntée à [blobatar](https://github.com/Alain00/blobatar)). Tu peux toujours uploader ton propre PNG/GIF.
+- 🎞️ **Clawd vivant** — le Clawd officiel de Claude Code en pixel art (quatre pattes, contour sticker), animé **en continu** (respire, cligne, jette des regards, sautille, tremble quand ça chauffe…) : 1 image/s sur la dalle, fluide sur le web (yeux qui suivent ta souris) ; le point « online » clignote en direct.
+- 🎨 **Générateur d'humeurs** — dans la galerie, compose une humeur (yeux, bouche, accessoire, chapeau, animation) : son sprite e-paper animé est généré, et le web le dessine en direct. Une nouvelle humeur a d'office une tête tirée de son nom (idée empruntée à [blobatar](https://github.com/Alain00/blobatar)).
 - 🔐 **Auth passkey** — dashboard protégé par WebAuthn + code de récupération.
 - ⚙️ **Installation en une commande** — `make install` (Node, libs, build) puis `make run`, ou en service `systemd` au boot.
 

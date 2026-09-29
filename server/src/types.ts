@@ -39,7 +39,4 @@ export interface PollerState {
   ageLabel: string;
   /** Une pose a-t-elle été forcée manuellement (bouton shuffle) ? */
   poseManual: boolean;
-  /** La pose a-t-elle un fichier WEB uploadé ? Le dashboard l'affiche alors tel
-   * quel, sinon il dessine Clawd en vectoriel live à partir du look. */
-  poseWebUpload: boolean;
 }
