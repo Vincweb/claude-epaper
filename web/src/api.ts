@@ -1,5 +1,5 @@
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser';
-import type { AppConfig, PollerState } from './lib/usage';
+import type { AppConfig, ConnectionInfo, PollerState } from './lib/usage';
 
 export async function getConfig(): Promise<AppConfig> {
   const r = await fetch('/api/config');
@@ -18,6 +18,36 @@ export async function putConfig(patch: Partial<AppConfig>): Promise<AppConfig> {
 export async function importCredentials(): Promise<{ imported: boolean }> {
   const r = await fetch('/api/auth/import', { method: 'POST' });
   return r.json();
+}
+
+/* --------------- connexion à Claude (token `claude setup-token`) --------------- */
+
+export async function getClaudeConnection(): Promise<ConnectionInfo> {
+  return (await fetch('/api/claude/connection')).json();
+}
+
+export interface SaveTokenResult {
+  fiveHour: number;
+  sevenDay: number;
+  connection: ConnectionInfo;
+}
+
+/** Teste le token puis l'enregistre (seulement si le test réussit). Lève l'erreur exacte sinon. */
+export async function saveClaudeToken(token: string): Promise<SaveTokenResult> {
+  const r = await fetch('/api/claude/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error ?? `Échec (${r.status})`);
+  return j as SaveTokenResult;
+}
+
+/** Supprime le token longue durée (retour aux credentials Claude Code). */
+export async function deleteClaudeToken(): Promise<ConnectionInfo> {
+  const r = await fetch('/api/claude/token', { method: 'DELETE' });
+  return (await r.json()).connection;
 }
 
 export async function shufflePose(): Promise<void> {

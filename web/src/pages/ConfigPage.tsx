@@ -3,22 +3,133 @@ import { useAppData } from '../App';
 import {
   checkUpdate,
   createApiToken,
+  deleteClaudeToken,
   getApiToken,
+  getClaudeConnection,
   getConfig,
   getVersion,
   importCredentials,
   putConfig,
   registerPasskey,
   revokeApiToken,
+  saveClaudeToken,
   systemUpdate,
   type ApiToken,
   type UpdateCheck,
   type VersionInfo,
 } from '../api';
-import type { AppConfig } from '../lib/usage';
+import type { AppConfig, ConnectionInfo } from '../lib/usage';
 
 const field = 'w-full rounded-lg bg-black/30 border border-white/10 px-3 py-2 text-sm';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Copie dans le presse-papiers, avec repli pour le HTTP sur IP LAN (contexte non sécurisé). */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  }
+}
+
+const SOURCE_LABEL: Record<ConnectionInfo['source'], string> = {
+  'long-token': 'Token longue durée',
+  'claude-code': 'Credentials Claude Code',
+  none: 'Aucune',
+};
+
+/** Source active + détails du token longue durée (fin, date) et bouton Supprimer. */
+function ConnectionStatus({
+  connection,
+  onDelete,
+  busy,
+}: {
+  connection: ConnectionInfo | null;
+  onDelete: () => void;
+  busy: boolean;
+}) {
+  const [confirm, setConfirm] = useState(false);
+  if (!connection) return <div className="text-xs text-white/40">Source active : …</div>;
+  const isToken = connection.source === 'long-token';
+  const dot = connection.tokenRejected ? '#e0533c' : connection.source === 'none' ? '#e0a458' : '#4ade80';
+
+  return (
+    <div className="space-y-2 text-xs">
+      <div className="flex items-center gap-2">
+        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: dot }} />
+        <span className="text-white/50">Source active :</span>
+        <span className="font-medium text-white/85">{SOURCE_LABEL[connection.source]}</span>
+      </div>
+
+      {isToken && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pl-4 text-white/50">
+          <span>
+            Token <code className="text-white/80">…{connection.tokenLast4}</code>
+          </span>
+          {connection.tokenSavedAt && (
+            <span>
+              enregistré le{' '}
+              {new Date(connection.tokenSavedAt).toLocaleString('fr-FR', {
+                dateStyle: 'short',
+                timeStyle: 'short',
+              })}
+            </span>
+          )}
+          {confirm ? (
+            <span className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setConfirm(false);
+                  onDelete();
+                }}
+                disabled={busy}
+                className="rounded-lg bg-[#e0533c]/20 px-2 py-1 text-[#e0533c] hover:bg-[#e0533c]/30 disabled:opacity-50"
+              >
+                Confirmer la suppression
+              </button>
+              <button onClick={() => setConfirm(false)} className="text-white/40 hover:text-white/70">
+                Annuler
+              </button>
+            </span>
+          ) : (
+            <button
+              onClick={() => setConfirm(true)}
+              disabled={busy}
+              className="rounded-lg bg-white/10 px-2 py-1 text-[#e0533c] hover:bg-white/20 disabled:opacity-50"
+            >
+              Supprimer
+            </button>
+          )}
+        </div>
+      )}
+
+      {connection.tokenRejected && (
+        <p className="rounded-lg border border-[#e0533c]/40 bg-[#e0533c]/10 p-2 text-[#f08a78]">
+          Ce token a été refusé (401) : il est expiré ou révoqué. Génère-en un nouveau avec{' '}
+          <code>claude setup-token</code> et colle-le ci-dessous. Plus aucun appel n'est fait avec
+          l'ancien.
+        </p>
+      )}
+      {isToken && !connection.tokenRejected && (
+        <p className="pl-4 text-[11px] text-white/35">
+          Supprimer le token fait revenir aux credentials Claude Code (s'il y en a).
+        </p>
+      )}
+      {connection.source === 'none' && (
+        <p className="pl-4 text-[11px] text-white/35">Suis les étapes ci-dessous pour connecter tes limites.</p>
+      )}
+    </div>
+  );
+}
 
 function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
@@ -31,7 +142,7 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
 }
 
 export function ConfigPage() {
-  const { refreshConfig } = useAppData();
+  const { refreshConfig, state } = useAppData();
   const [saved, setSaved] = useState<AppConfig | null>(null);
   const [form, setForm] = useState<AppConfig | null>(null);
   const [saving, setSaving] = useState(false);
@@ -47,12 +158,21 @@ export function ConfigPage() {
   const [tokenBusy, setTokenBusy] = useState(false);
   const [revealKey, setRevealKey] = useState(false);
   const [copied, setCopied] = useState(false);
+  // Connexion à Claude : champ hors de `form` (jamais renvoyé par PUT /config).
+  const [claudeToken, setClaudeToken] = useState('');
+  const [claudeBusy, setClaudeBusy] = useState(false);
+  const [tokenResult, setTokenResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [cmdCopied, setCmdCopied] = useState(false);
+  const [fetchedConnection, setFetchedConnection] = useState<ConnectionInfo | null>(null);
+  // Le SSE fait foi dès qu'il a parlé ; la réponse des actions comble le délai.
+  const connection = state?.connection ?? fetchedConnection;
 
   useEffect(() => {
     getConfig().then((c) => {
       setSaved(c);
       setForm(c);
     });
+    getClaudeConnection().then(setFetchedConnection).catch(() => {});
     getVersion().then(setVersion).catch(() => {});
     getApiToken().then(setApiToken).catch(() => {});
     checkUpdate()
@@ -79,6 +199,42 @@ export function ConfigPage() {
     setSavedFlash(true);
     refreshConfig();
     setTimeout(() => setSavedFlash(false), 2500);
+  };
+
+  const submitClaudeToken = async () => {
+    if (claudeBusy || !claudeToken.trim()) return;
+    setClaudeBusy(true);
+    setTokenResult(null);
+    try {
+      const r = await saveClaudeToken(claudeToken);
+      setFetchedConnection(r.connection);
+      setClaudeToken('');
+      setTokenResult({
+        ok: true,
+        text: `Connecté : 5 h ${Math.round(r.fiveHour)} %, 7 j ${Math.round(r.sevenDay)} %`,
+      });
+    } catch (e) {
+      setTokenResult({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setClaudeBusy(false);
+    }
+  };
+
+  const dropClaudeToken = async () => {
+    setClaudeBusy(true);
+    try {
+      setFetchedConnection(await deleteClaudeToken());
+      setTokenResult(null);
+    } finally {
+      setClaudeBusy(false);
+    }
+  };
+
+  const copyCommand = async () => {
+    if (await copyText('claude setup-token')) {
+      setCmdCopied(true);
+      setTimeout(() => setCmdCopied(false), 2000);
+    }
   };
 
   const doImport = async () => {
@@ -171,8 +327,85 @@ export function ConfigPage() {
       <h2 className="mb-4 text-lg font-semibold">Configuration</h2>
 
       <div className="space-y-4">
-        <Section title="Claude" hint="Connexion aux limites de ton compte Claude Code.">
-          <div>
+        <Section title="Connexion à Claude" hint="Accès aux limites 5 h / 7 j de ton compte Claude.">
+          <ConnectionStatus
+            connection={connection}
+            onDelete={dropClaudeToken}
+            busy={claudeBusy}
+          />
+
+          <div className="rounded-lg border border-[#d97757]/30 bg-[#d97757]/[0.06] p-3">
+            <div className="text-xs font-medium text-[#e0956f]">Recommandé : token longue durée</div>
+            <ol className="mt-2 space-y-3 text-xs text-white/70">
+              <li>
+                <span className="text-white/45">1.</span> Sur n'importe quelle machine où Claude Code est
+                installé, lance :
+                <div className="mt-1.5 flex gap-2">
+                  <code className="flex-1 rounded-lg bg-black/40 px-3 py-2 font-mono text-sm text-white/90">
+                    claude setup-token
+                  </code>
+                  <button
+                    onClick={copyCommand}
+                    title="Copier la commande"
+                    className="shrink-0 rounded-lg bg-white/10 px-3 text-sm hover:bg-white/20"
+                  >
+                    {cmdCopied ? '✅' : 'Copier'}
+                  </button>
+                </div>
+              </li>
+              <li>
+                <span className="text-white/45">2.</span> Colle le token affiché :
+                <input
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className={`${field} mt-1.5 font-mono`}
+                  placeholder="sk-ant-oat01-…"
+                  value={claudeToken}
+                  onChange={(e) => {
+                    setClaudeToken(e.target.value);
+                    setTokenResult(null);
+                  }}
+                  onKeyDown={(e) => e.key === 'Enter' && void submitClaudeToken()}
+                />
+              </li>
+              <li className="flex flex-wrap items-center gap-3">
+                <span className="text-white/45">3.</span>
+                <button
+                  onClick={submitClaudeToken}
+                  disabled={claudeBusy || !claudeToken.trim()}
+                  className="rounded-lg bg-[#d97757] px-3 py-2 text-sm font-medium text-black hover:brightness-110 disabled:opacity-40"
+                >
+                  {claudeBusy ? 'Test en cours…' : 'Enregistrer et tester'}
+                </button>
+              </li>
+            </ol>
+            {tokenResult && (
+              <p
+                className={`mt-3 text-xs ${tokenResult.ok ? 'text-[#7bbf6a]' : 'text-[#e0533c]'}`}
+                role="status"
+              >
+                {tokenResult.text}
+              </p>
+            )}
+            <p className="mt-3 text-[11px] text-white/35">
+              Ce token n'expire pas à chaque rafraîchissement et n'est jamais partagé avec une autre
+              machine : Claude Code reste connecté partout. Il est stocké sur le serveur (fichier en
+              accès restreint) et n'est plus jamais réaffiché.
+            </p>
+          </div>
+
+          <details className="group rounded-lg border border-white/10 p-3">
+            <summary className="cursor-pointer select-none text-xs text-white/50 group-open:mb-3">
+              Avancé — importer les credentials de Claude Code
+            </summary>
+            <p className="mb-3 rounded-lg border border-[#e0a458]/30 bg-[#e0a458]/10 p-2 text-[11px] text-[#e0c08a]">
+              ⚠ Partager les credentials d'une machine où Claude Code est utilisé déconnectera l'une
+              des deux : quand l'une rafraîchit le token, l'autre perd l'accès. Préfère le token
+              longue durée ci-dessus.
+              {connection?.source === 'long-token' &&
+                ' Tant qu’un token longue durée est enregistré, ces credentials sont ignorés.'}
+            </p>
             <label className="mb-1 block text-xs text-white/60">Fichier de credentials</label>
             <div className="flex gap-2">
               <input className={field} value={form.credentialsPath} onChange={(e) => patch({ credentialsPath: e.target.value })} />
@@ -185,8 +418,10 @@ export function ConfigPage() {
               </button>
             </div>
             {importMsg && <span className="mt-1 block text-[11px] text-white/60">{importMsg}</span>}
-          </div>
+          </details>
+        </Section>
 
+        <Section title="Limites" hint="Fréquence d'appel et seuils des jauges.">
           <div>
             <label className="mb-1 block text-xs text-white/60">
               Appel des limites — API <code>/usage</code> (secondes)

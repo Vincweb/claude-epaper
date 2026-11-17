@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
-import { getValidAccessToken } from './credentials.js';
-import { fetchUsage } from './usage.js';
+import { markLongTokenRejected, resolveAccess, type ConnectionInfo } from './credentials.js';
+import { fetchUsage, redactSecrets, UsageError } from './usage.js';
 import { loadConfig, saveConfig } from './config.js';
 import {
   deriveStats,
@@ -13,6 +13,10 @@ import {
 import { customPoses, findPose, resolvePose, rotationPoses } from './poses.js';
 import type { PollerState, UsageSnapshot } from './types.js';
 
+/** Message d'état quand le token longue durée reçoit un 401. */
+export const TOKEN_REJECTED_MSG =
+  'token longue durée refusé (401) : expiré ou révoqué — régénère-le avec « claude setup-token »';
+
 /**
  * Poll périodiquement l'endpoint usage, met en cache le dernier état,
  * calcule les dérivés (pose, stats, niveau) — source de vérité unique pour le
@@ -23,6 +27,7 @@ export class UsagePoller extends EventEmitter {
     snapshot: null,
     authenticated: false,
     lastError: null,
+    connection: { source: 'none', tokenLast4: null, tokenSavedAt: null, tokenRejected: false },
     lastFetchedAt: null,
     lastActivityAt: null,
     usageXp: loadConfig().usageXp,
@@ -114,44 +119,68 @@ export class UsagePoller extends EventEmitter {
     return pose;
   }
 
+  /** Intègre un snapshot frais (tick, ou test d'un token tout juste enregistré). */
+  ingest(snap: UsageSnapshot, connection?: ConnectionInfo): void {
+    if (connection) this.state.connection = connection;
+    this.state.authenticated = true;
+    const prev = this.state.snapshot;
+    this.state.snapshot = snap;
+    this.state.lastError = null;
+    this.state.lastFetchedAt = snap.fetchedAt;
+
+    const utilChanged =
+      prev &&
+      (prev.fiveHour.utilization !== snap.fiveHour.utilization ||
+        prev.sevenDay.utilization !== snap.sevenDay.utilization);
+    if (!prev || utilChanged) this.state.lastActivityAt = snap.fetchedAt;
+
+    if (prev) {
+      const gained =
+        Math.max(0, snap.fiveHour.utilization - prev.fiveHour.utilization) +
+        Math.max(0, snap.sevenDay.utilization - prev.sevenDay.utilization);
+      if (gained > 0) {
+        this.state.usageXp += gained;
+        saveConfig({ usageXp: this.state.usageXp });
+      }
+    }
+
+    this.recompute();
+    this.emit('state', this.state);
+    if (!prev || utilChanged) this.emit('change', snap, prev ?? null);
+  }
+
   async tick(): Promise<void> {
+    let used: { source: ConnectionInfo['source']; token: string } | null = null;
     try {
-      const token = await getValidAccessToken();
-      if (!token) {
-        this.state.authenticated = false;
-        this.state.lastError = 'no credentials';
+      const { info, accessToken, error } = await resolveAccess();
+      this.state.connection = info;
+      if (accessToken) used = { source: info.source, token: accessToken };
+      if (!accessToken) {
+        // Échec du refresh (credentials Claude Code) : comportement historique,
+        // seule l'erreur change. Sinon : pas de source, ou token longue durée
+        // refusé → on n'appelle plus l'API (pas de boucle de 401) et on ne
+        // retombe pas sur les credentials Claude Code.
+        if (error) this.state.lastError = redactSecrets(error);
+        else {
+          this.state.authenticated = false;
+          this.state.lastError = info.tokenRejected ? TOKEN_REJECTED_MSG : 'no credentials';
+        }
         this.recompute();
         this.emit('state', this.state);
         return;
       }
       this.state.authenticated = true;
-      const snap = await fetchUsage(token);
-      const prev = this.state.snapshot;
-      this.state.snapshot = snap;
-      this.state.lastError = null;
-      this.state.lastFetchedAt = snap.fetchedAt;
-
-      const utilChanged =
-        prev &&
-        (prev.fiveHour.utilization !== snap.fiveHour.utilization ||
-          prev.sevenDay.utilization !== snap.sevenDay.utilization);
-      if (!prev || utilChanged) this.state.lastActivityAt = snap.fetchedAt;
-
-      if (prev) {
-        const gained =
-          Math.max(0, snap.fiveHour.utilization - prev.fiveHour.utilization) +
-          Math.max(0, snap.sevenDay.utilization - prev.sevenDay.utilization);
-        if (gained > 0) {
-          this.state.usageXp += gained;
-          saveConfig({ usageXp: this.state.usageXp });
-        }
-      }
-
-      this.recompute();
-      this.emit('state', this.state);
-      if (!prev || utilChanged) this.emit('change', snap, prev ?? null);
+      this.ingest(await fetchUsage(accessToken));
     } catch (e) {
-      this.state.lastError = e instanceof Error ? e.message : String(e);
+      if (e instanceof UsageError && e.status === 401 && used?.source === 'long-token') {
+        // Token remplacé pendant l'appel : on ignore ce résultat périmé.
+        if (!markLongTokenRejected(used.token)) return;
+        this.state.connection = { ...this.state.connection, tokenRejected: true };
+        this.state.authenticated = false;
+        this.state.lastError = TOKEN_REJECTED_MSG;
+      } else {
+        this.state.lastError = redactSecrets(e instanceof Error ? e.message : String(e));
+      }
       this.recompute();
       this.emit('state', this.state);
     }

@@ -111,3 +111,124 @@ export async function getValidAccessToken(): Promise<string | null> {
   }
   return creds.accessToken;
 }
+
+/* ------------------------- token longue durée ------------------------------ */
+// Token issu de « claude setup-token » : pas de refresh token, jamais rafraîchi,
+// utilisé tel quel. Prioritaire sur les credentials Claude Code (partager ces
+// derniers entre deux machines déconnecte l'une quand l'autre rafraîchit).
+
+interface LongTokenRecord {
+  token: string;
+  /** Date ISO d'enregistrement. */
+  savedAt: string;
+  /** Date ISO du dernier 401 : le token est expiré/révoqué, on ne le rappelle plus. */
+  rejectedAt?: string | null;
+}
+
+/** Fichier dédié (jamais dans config.json, renvoyé tel quel par GET /config). */
+const longTokenPath = () => path.join(getConfigDir(), 'claude-token.json');
+
+function writeLongToken(rec: LongTokenRecord): void {
+  ensureConfigDir();
+  const p = longTokenPath();
+  fs.writeFileSync(p, JSON.stringify(rec, null, 2), { mode: 0o600 });
+  // `mode` ne s'applique qu'à la création : on force aussi sur un fichier existant.
+  fs.chmodSync(p, 0o600);
+}
+
+function readLongToken(): LongTokenRecord | null {
+  try {
+    const j = JSON.parse(fs.readFileSync(longTokenPath(), 'utf8')) as Partial<LongTokenRecord>;
+    if (typeof j.token !== 'string' || !j.token) return null;
+    return { token: j.token, savedAt: String(j.savedAt ?? ''), rejectedAt: j.rejectedAt ?? null };
+  } catch {
+    return null;
+  }
+}
+
+/** Nettoie un token collé (le terminal coupe souvent les longues lignes). */
+export function normalizeLongToken(raw: unknown): string {
+  return typeof raw === 'string' ? raw.replace(/\s+/g, '') : '';
+}
+
+/** Validation de forme volontairement permissive : le vrai juge est l'appel de test. */
+export function longTokenFormatError(token: string): string | null {
+  if (!token) return 'Token vide.';
+  if (token.length < 20) return 'Token trop court : colle la ligne complète affichée par « claude setup-token ».';
+  if (token.length > 1000) return 'Token trop long : vérifie ce que tu as collé.';
+  if (!/^[\x21-\x7e]+$/.test(token)) return 'Le token contient des caractères inattendus.';
+  return null;
+}
+
+export function saveLongToken(token: string): void {
+  writeLongToken({ token, savedAt: new Date().toISOString(), rejectedAt: null });
+}
+
+export function deleteLongToken(): void {
+  fs.rmSync(longTokenPath(), { force: true });
+}
+
+/**
+ * Marque le token comme refusé (401) : plus aucun appel tant qu'il n'est pas
+ * remplacé. Ne touche le fichier que s'il contient toujours CE token (un tick en
+ * vol ne doit pas condamner un token enregistré entre-temps).
+ */
+export function markLongTokenRejected(token: string): boolean {
+  const rec = readLongToken();
+  if (!rec || rec.token !== token) return false;
+  if (!rec.rejectedAt) writeLongToken({ ...rec, rejectedAt: new Date().toISOString() });
+  return true;
+}
+
+export type CredentialSource = 'long-token' | 'claude-code' | 'none';
+
+/** Ce qui peut être exposé (API, SSE) : jamais le token lui-même. */
+export interface ConnectionInfo {
+  source: CredentialSource;
+  /** 4 derniers caractères du token longue durée. */
+  tokenLast4: string | null;
+  tokenSavedAt: string | null;
+  /** Le token longue durée a reçu un 401 : expiré ou révoqué, à régénérer. */
+  tokenRejected: boolean;
+}
+
+export interface ResolvedAccess {
+  info: ConnectionInfo;
+  /** Token à utiliser, ou null (aucune source, token longue durée refusé, refresh en échec). */
+  accessToken: string | null;
+  /** Échec d'obtention du token (ex. refresh des credentials Claude Code). */
+  error?: string;
+}
+
+/**
+ * Résolveur unique de la source : token longue durée s'il existe (sans jamais
+ * toucher aux credentials Claude Code ni rafraîchir), sinon le mécanisme
+ * historique (copie gérée + refresh), inchangé.
+ */
+export async function resolveAccess(): Promise<ResolvedAccess> {
+  const rec = readLongToken();
+  if (rec) {
+    return {
+      info: {
+        source: 'long-token',
+        tokenLast4: rec.token.slice(-4),
+        tokenSavedAt: rec.savedAt || null,
+        tokenRejected: Boolean(rec.rejectedAt),
+      },
+      accessToken: rec.rejectedAt ? null : rec.token,
+    };
+  }
+  // Source déterminée AVANT tout appel réseau : elle doit rester juste même si
+  // le refresh échoue (credentials partagés dont le refresh token est mort).
+  const info: ConnectionInfo = {
+    source: loadStore() ? 'claude-code' : 'none',
+    tokenLast4: null,
+    tokenSavedAt: null,
+    tokenRejected: false,
+  };
+  try {
+    return { info, accessToken: await getValidAccessToken() };
+  } catch (e) {
+    return { info, accessToken: null, error: e instanceof Error ? e.message : String(e) };
+  }
+}

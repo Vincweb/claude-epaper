@@ -10,10 +10,22 @@ export interface UsageSnapshot {
   fetchedAt: string;
 }
 
+export type CredentialSource = 'long-token' | 'claude-code' | 'none';
+
+/** Source des credentials active (le token n'est jamais exposé, seulement sa fin). */
+export interface ConnectionInfo {
+  source: CredentialSource;
+  tokenLast4: string | null;
+  tokenSavedAt: string | null;
+  /** Token longue durée refusé (401) : expiré ou révoqué, à régénérer. */
+  tokenRejected: boolean;
+}
+
 export interface PollerState {
   snapshot: UsageSnapshot | null;
   authenticated: boolean;
   lastError: string | null;
+  connection?: ConnectionInfo;
   lastFetchedAt: string | null;
   /** Dernière fois qu'une conso a bougé (détection d'inactivité). */
   lastActivityAt: string | null;

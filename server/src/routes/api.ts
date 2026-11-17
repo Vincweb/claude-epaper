@@ -7,7 +7,15 @@ import { promisify } from 'node:util';
 import QRCode from 'qrcode';
 import { poller } from '../poller.js';
 import { loadConfig, saveConfig } from '../config.js';
-import { importFromSource } from '../credentials.js';
+import {
+  deleteLongToken,
+  importFromSource,
+  longTokenFormatError,
+  normalizeLongToken,
+  resolveAccess,
+  saveLongToken,
+} from '../credentials.js';
+import { fetchUsage, redactSecrets, UsageError } from '../usage.js';
 import { normalizeLayout, renderEpaperPng } from '../render.js';
 import { clearSpriteCache, generateSprite, poseAssetInfo, readPoseAsset, SPRITE_SIZE, type SpriteVariant } from '../sprites.js';
 import { LOOK_PARTS, SPECIAL_POSES, sanitizeLook, type Pose } from '../mascot.js';
@@ -356,6 +364,68 @@ apiRouter.post('/auth/import', requireAuth, (_req, res) => {
   const creds = importFromSource();
   void poller.tick();
   res.json({ imported: Boolean(creds) });
+});
+
+/* ------------------- connexion à Claude (token longue durée) ------------------- */
+// ⚠ Le token n'apparaît JAMAIS dans une réponse, un log ou le SSE : seuls ses
+// 4 derniers caractères et sa date d'enregistrement sont exposés.
+
+/** Source active : « long-token », « claude-code » ou « none ». */
+apiRouter.get('/claude/connection', requireAuth, (_req, res) => {
+  res.json(poller.state.connection);
+});
+
+/** Traduit un échec de l'appel de test en message clair (et en statut HTTP de NOTRE API :
+ * jamais 401, réservé à la session du dashboard). */
+function tokenTestError(e: unknown, token: string): { status: number; code: string; error: string } {
+  if (e instanceof UsageError) {
+    if (e.status === 401) {
+      const hint = token.startsWith('sk-ant-api')
+        ? ' Ceci ressemble à une clé d’API Console, pas à un token « claude setup-token ».'
+        : ' Régénère-le avec « claude setup-token ».';
+      return { status: 400, code: 'invalid', error: `Token invalide ou expiré (401).${hint}` };
+    }
+    if (e.status === 403)
+      return { status: 400, code: 'forbidden', error: 'Droits insuffisants (403) : ce token ne permet pas de lire les limites du compte.' };
+    if (e.status === 429)
+      return { status: 502, code: 'rate-limited', error: 'Trop de requêtes (429) : réessaie dans quelques minutes.' };
+    if (e.status === null)
+      return { status: 502, code: 'network', error: `Erreur réseau : impossible de joindre api.anthropic.com (${e.message.replace(/^usage failed: réseau \((.*)\)$/, '$1')}).` };
+    return { status: 502, code: 'upstream', error: `Réponse inattendue de l’API Anthropic (${e.status}).` };
+  }
+  return { status: 500, code: 'internal', error: redactSecrets(e instanceof Error ? e.message : String(e)) };
+}
+
+/** Enregistre un token « claude setup-token » : testé d'abord, enregistré seulement si l'appel réussit. */
+apiRouter.post('/claude/token', requireAuth, async (req, res) => {
+  const token = normalizeLongToken(req.body?.token);
+  const formatError = longTokenFormatError(token);
+  if (formatError) {
+    res.status(400).json({ code: 'format', error: formatError });
+    return;
+  }
+  try {
+    const snap = await fetchUsage(token);
+    saveLongToken(token);
+    const { info } = await resolveAccess();
+    poller.ingest(snap, info);
+    res.json({
+      ok: true,
+      fiveHour: snap.fiveHour.utilization,
+      sevenDay: snap.sevenDay.utilization,
+      connection: info,
+    });
+  } catch (e) {
+    const { status, code, error } = tokenTestError(e, token);
+    res.status(status).json({ code, error });
+  }
+});
+
+/** Supprime le token longue durée → retour au mécanisme précédent (credentials Claude Code). */
+apiRouter.delete('/claude/token', requireAuth, async (_req, res) => {
+  deleteLongToken();
+  await poller.tick();
+  res.json({ ok: true, connection: poller.state.connection });
 });
 
 /** Version courante : numéro (package.json) + commit git + date. */

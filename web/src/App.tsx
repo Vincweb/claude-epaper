@@ -171,8 +171,10 @@ function Layout({ onLogout }: { onLogout: () => void }) {
       <footer className="mt-6 text-center text-xs text-white/40">
         {authenticated
           ? `Dernier fetch : ${state?.lastFetchedAt ? new Date(state.lastFetchedAt).toLocaleTimeString('fr-FR') : '—'}`
-          : state?.lastError
-            ? `Non connecté (${state.lastError}) — importe tes credentials dans Config`
+          : state?.connection?.tokenRejected
+            ? 'Token longue durée expiré ou révoqué — régénère-le (Config → Connexion à Claude)'
+            : state?.lastError
+            ? `Non connecté (${state.lastError}) — connecte-toi dans Config → Connexion à Claude`
             : 'En attente des données…'}
       </footer>
     </div>

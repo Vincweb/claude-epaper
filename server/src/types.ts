@@ -18,11 +18,14 @@ export interface UsageSnapshot {
 }
 
 import type { Pose, Stat } from './mascot.js';
+import type { ConnectionInfo } from './credentials.js';
 
 export interface PollerState {
   snapshot: UsageSnapshot | null;
   authenticated: boolean;
   lastError: string | null;
+  /** Source des credentials active (jamais le token : 4 derniers caractères au plus). */
+  connection: ConnectionInfo;
   lastFetchedAt: string | null;
   /** Dernière fois qu'une conso a bougé (détection d'inactivité). */
   lastActivityAt: string | null;

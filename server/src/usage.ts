@@ -1,6 +1,23 @@
 import type { UsageSnapshot, UsageWindow } from './types.js';
 
 const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
+const TIMEOUT_MS = 15_000;
+
+/** Erreur d'appel à l'endpoint usage ; `status` null = erreur réseau / timeout. */
+export class UsageError extends Error {
+  constructor(
+    message: string,
+    readonly status: number | null,
+  ) {
+    super(message);
+    this.name = 'UsageError';
+  }
+}
+
+/** Masque tout ce qui ressemble à un token Anthropic (au cas où une réponse le renverrait). */
+export function redactSecrets(s: string): string {
+  return s.replace(/sk-ant-[\w-]+/g, 'sk-ant-…');
+}
 
 function toWindow(o: unknown): UsageWindow {
   const w = (o ?? {}) as Record<string, unknown>;
@@ -12,16 +29,25 @@ function toWindow(o: unknown): UsageWindow {
 
 /** Interroge l'endpoint oauth/usage — le même que la commande /usage de Claude Code. */
 export async function fetchUsage(accessToken: string): Promise<UsageSnapshot> {
-  const res = await fetch(USAGE_URL, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'anthropic-beta': 'oauth-2025-04-20',
-      'User-Agent': 'claude-code/2.0.32',
-      Accept: 'application/json',
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(USAGE_URL, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'anthropic-beta': 'oauth-2025-04-20',
+        'User-Agent': 'claude-code/2.0.32',
+        Accept: 'application/json',
+      },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch (e) {
+    const cause = (e as { cause?: { code?: string } })?.cause?.code;
+    const what = e instanceof Error && e.name === 'TimeoutError' ? 'délai dépassé' : cause ?? (e instanceof Error ? e.message : String(e));
+    throw new UsageError(`usage failed: réseau (${what})`, null);
+  }
   if (!res.ok) {
-    throw new Error(`usage failed: ${res.status} ${await res.text()}`);
+    const body = redactSecrets((await res.text().catch(() => '')).slice(0, 300));
+    throw new UsageError(`usage failed: ${res.status} ${body}`.trim(), res.status);
   }
   const j = (await res.json()) as Record<string, unknown>;
   return {
