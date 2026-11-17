@@ -3,16 +3,17 @@ import { useAppData } from '../App';
 import {
   checkUpdate,
   createApiToken,
-  deleteClaudeToken,
   getApiToken,
+  finishClaudeLogin,
   getClaudeConnection,
   getConfig,
   getVersion,
   importCredentials,
+  logoutClaude,
   putConfig,
   registerPasskey,
   revokeApiToken,
-  saveClaudeToken,
+  startClaudeLogin,
   systemUpdate,
   type ApiToken,
   type UpdateCheck,
@@ -42,25 +43,27 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 const SOURCE_LABEL: Record<ConnectionInfo['source'], string> = {
-  'long-token': 'Token longue durée',
-  'claude-code': 'Credentials Claude Code',
+  dashboard: 'Connexion dédiée (dashboard)',
+  'claude-code': 'Credentials importés de Claude Code',
   none: 'Aucune',
 };
 
-/** Source active + détails du token longue durée (fin, date) et bouton Supprimer. */
+/** Source active (compte, date), erreur éventuelle et bouton Se déconnecter. */
 function ConnectionStatus({
   connection,
-  onDelete,
+  error,
+  onLogout,
   busy,
 }: {
   connection: ConnectionInfo | null;
-  onDelete: () => void;
+  error: string | null;
+  onLogout: () => void;
   busy: boolean;
 }) {
   const [confirm, setConfirm] = useState(false);
   if (!connection) return <div className="text-xs text-white/40">Source active : …</div>;
-  const isToken = connection.source === 'long-token';
-  const dot = connection.tokenRejected ? '#e0533c' : connection.source === 'none' ? '#e0a458' : '#4ade80';
+  const connected = connection.source !== 'none';
+  const dot = error && connected ? '#e0533c' : connection.source === 'dashboard' ? '#4ade80' : '#e0a458';
 
   return (
     <div className="space-y-2 text-xs">
@@ -70,18 +73,13 @@ function ConnectionStatus({
         <span className="font-medium text-white/85">{SOURCE_LABEL[connection.source]}</span>
       </div>
 
-      {isToken && (
+      {connected && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pl-4 text-white/50">
-          <span>
-            Token <code className="text-white/80">…{connection.tokenLast4}</code>
-          </span>
-          {connection.tokenSavedAt && (
+          {connection.account && <span className="text-white/75">{connection.account}</span>}
+          {connection.connectedAt && (
             <span>
-              enregistré le{' '}
-              {new Date(connection.tokenSavedAt).toLocaleString('fr-FR', {
-                dateStyle: 'short',
-                timeStyle: 'short',
-              })}
+              depuis le{' '}
+              {new Date(connection.connectedAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}
             </span>
           )}
           {confirm ? (
@@ -89,12 +87,12 @@ function ConnectionStatus({
               <button
                 onClick={() => {
                   setConfirm(false);
-                  onDelete();
+                  onLogout();
                 }}
                 disabled={busy}
                 className="rounded-lg bg-[#e0533c]/20 px-2 py-1 text-[#e0533c] hover:bg-[#e0533c]/30 disabled:opacity-50"
               >
-                Confirmer la suppression
+                Confirmer la déconnexion
               </button>
               <button onClick={() => setConfirm(false)} className="text-white/40 hover:text-white/70">
                 Annuler
@@ -106,26 +104,20 @@ function ConnectionStatus({
               disabled={busy}
               className="rounded-lg bg-white/10 px-2 py-1 text-[#e0533c] hover:bg-white/20 disabled:opacity-50"
             >
-              Supprimer
+              Se déconnecter
             </button>
           )}
         </div>
       )}
 
-      {connection.tokenRejected && (
-        <p className="rounded-lg border border-[#e0533c]/40 bg-[#e0533c]/10 p-2 text-[#f08a78]">
-          Ce token a été refusé (401) : il est expiré ou révoqué. Génère-en un nouveau avec{' '}
-          <code>claude setup-token</code> et colle-le ci-dessous. Plus aucun appel n'est fait avec
-          l'ancien.
-        </p>
+      {connected && error && (
+        <p className="rounded-lg border border-[#e0533c]/40 bg-[#e0533c]/10 p-2 text-[#f08a78]">{error}</p>
       )}
-      {isToken && !connection.tokenRejected && (
-        <p className="pl-4 text-[11px] text-white/35">
-          Supprimer le token fait revenir aux credentials Claude Code (s'il y en a).
+      {connection.source === 'claude-code' && (
+        <p className="rounded-lg border border-[#e0a458]/30 bg-[#e0a458]/10 p-2 text-[11px] text-[#e0c08a]">
+          Ces identifiants sont partagés avec un Claude Code : quand l'un les rafraîchit, l'autre est
+          déconnecté. Connecte plutôt le dashboard à ton compte ci-dessous.
         </p>
-      )}
-      {connection.source === 'none' && (
-        <p className="pl-4 text-[11px] text-white/35">Suis les étapes ci-dessous pour connecter tes limites.</p>
       )}
     </div>
   );
@@ -158,11 +150,12 @@ export function ConfigPage() {
   const [tokenBusy, setTokenBusy] = useState(false);
   const [revealKey, setRevealKey] = useState(false);
   const [copied, setCopied] = useState(false);
-  // Connexion à Claude : champ hors de `form` (jamais renvoyé par PUT /config).
-  const [claudeToken, setClaudeToken] = useState('');
+  // Connexion à Claude : champs hors de `form` (jamais renvoyés par PUT /config).
+  const [loginUrl, setLoginUrl] = useState<string | null>(null);
+  const [loginCode, setLoginCode] = useState('');
   const [claudeBusy, setClaudeBusy] = useState(false);
-  const [tokenResult, setTokenResult] = useState<{ ok: boolean; text: string } | null>(null);
-  const [cmdCopied, setCmdCopied] = useState(false);
+  const [loginResult, setLoginResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [fetchedConnection, setFetchedConnection] = useState<ConnectionInfo | null>(null);
   // Le SSE fait foi dès qu'il a parlé ; la réponse des actions comble le délai.
   const connection = state?.connection ?? fetchedConnection;
@@ -201,39 +194,58 @@ export function ConfigPage() {
     setTimeout(() => setSavedFlash(false), 2500);
   };
 
-  const submitClaudeToken = async () => {
-    if (claudeBusy || !claudeToken.trim()) return;
+  const startLogin = async () => {
+    // Fenêtre ouverte DANS le clic (sinon bloquée), l'URL arrive juste après.
+    const win = window.open('', '_blank');
     setClaudeBusy(true);
-    setTokenResult(null);
+    setLoginResult(null);
     try {
-      const r = await saveClaudeToken(claudeToken);
+      const url = await startClaudeLogin();
+      setLoginUrl(url);
+      setLoginCode('');
+      if (win) win.location.href = url;
+    } catch (e) {
+      win?.close();
+      setLoginResult({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setClaudeBusy(false);
+    }
+  };
+
+  const finishLogin = async () => {
+    if (claudeBusy || !loginCode.trim()) return;
+    setClaudeBusy(true);
+    setLoginResult(null);
+    try {
+      const r = await finishClaudeLogin(loginCode);
       setFetchedConnection(r.connection);
-      setClaudeToken('');
-      setTokenResult({
+      setLoginCode('');
+      setLoginUrl(null);
+      setLoginResult({
         ok: true,
         text: `Connecté : 5 h ${Math.round(r.fiveHour)} %, 7 j ${Math.round(r.sevenDay)} %`,
       });
     } catch (e) {
-      setTokenResult({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      setLoginResult({ ok: false, text: e instanceof Error ? e.message : String(e) });
     } finally {
       setClaudeBusy(false);
     }
   };
 
-  const dropClaudeToken = async () => {
+  const doLogoutClaude = async () => {
     setClaudeBusy(true);
     try {
-      setFetchedConnection(await deleteClaudeToken());
-      setTokenResult(null);
+      setFetchedConnection(await logoutClaude());
+      setLoginResult(null);
     } finally {
       setClaudeBusy(false);
     }
   };
 
-  const copyCommand = async () => {
-    if (await copyText('claude setup-token')) {
-      setCmdCopied(true);
-      setTimeout(() => setCmdCopied(false), 2000);
+  const copyLoginUrl = async () => {
+    if (loginUrl && (await copyText(loginUrl))) {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
     }
   };
 
@@ -330,68 +342,78 @@ export function ConfigPage() {
         <Section title="Connexion à Claude" hint="Accès aux limites 5 h / 7 j de ton compte Claude.">
           <ConnectionStatus
             connection={connection}
-            onDelete={dropClaudeToken}
+            error={state?.lastError && state.lastError !== 'no credentials' ? state.lastError : null}
+            onLogout={doLogoutClaude}
             busy={claudeBusy}
           />
 
           <div className="rounded-lg border border-[#d97757]/30 bg-[#d97757]/[0.06] p-3">
-            <div className="text-xs font-medium text-[#e0956f]">Recommandé : token longue durée</div>
+            <div className="text-xs font-medium text-[#e0956f]">
+              {connection?.source === 'dashboard' ? 'Reconnecter le compte' : 'Recommandé : connecter le dashboard à ton compte'}
+            </div>
             <ol className="mt-2 space-y-3 text-xs text-white/70">
-              <li>
-                <span className="text-white/45">1.</span> Sur n'importe quelle machine où Claude Code est
-                installé, lance :
-                <div className="mt-1.5 flex gap-2">
-                  <code className="flex-1 rounded-lg bg-black/40 px-3 py-2 font-mono text-sm text-white/90">
-                    claude setup-token
-                  </code>
+              <li className="space-y-1.5">
+                <div>
+                  <span className="text-white/45">1.</span> Ouvre la page de connexion Claude et autorise
+                  l'accès :
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
                   <button
-                    onClick={copyCommand}
-                    title="Copier la commande"
-                    className="shrink-0 rounded-lg bg-white/10 px-3 text-sm hover:bg-white/20"
+                    onClick={startLogin}
+                    disabled={claudeBusy}
+                    className="rounded-lg bg-[#d97757] px-3 py-2 text-sm font-medium text-black hover:brightness-110 disabled:opacity-40"
                   >
-                    {cmdCopied ? '✅' : 'Copier'}
+                    Se connecter à Claude ↗
                   </button>
+                  {loginUrl && (
+                    <>
+                      <a href={loginUrl} target="_blank" rel="noreferrer" className="text-[11px] text-white/50 underline">
+                        rouvrir le lien
+                      </a>
+                      <button onClick={copyLoginUrl} className="text-[11px] text-white/50 underline">
+                        {linkCopied ? 'lien copié ✅' : 'copier le lien'}
+                      </button>
+                    </>
+                  )}
                 </div>
               </li>
               <li>
-                <span className="text-white/45">2.</span> Colle le token affiché :
+                <span className="text-white/45">2.</span> Claude affiche ensuite un code : colle-le ici.
                 <input
-                  type="password"
+                  type="text"
                   autoComplete="off"
                   spellCheck={false}
-                  className={`${field} mt-1.5 font-mono`}
-                  placeholder="sk-ant-oat01-…"
-                  value={claudeToken}
+                  disabled={!loginUrl}
+                  className={`${field} mt-1.5 font-mono disabled:opacity-40`}
+                  placeholder={loginUrl ? 'code#…' : 'clique d’abord sur « Se connecter à Claude »'}
+                  value={loginCode}
                   onChange={(e) => {
-                    setClaudeToken(e.target.value);
-                    setTokenResult(null);
+                    setLoginCode(e.target.value);
+                    setLoginResult(null);
                   }}
-                  onKeyDown={(e) => e.key === 'Enter' && void submitClaudeToken()}
+                  onKeyDown={(e) => e.key === 'Enter' && void finishLogin()}
                 />
               </li>
               <li className="flex flex-wrap items-center gap-3">
                 <span className="text-white/45">3.</span>
                 <button
-                  onClick={submitClaudeToken}
-                  disabled={claudeBusy || !claudeToken.trim()}
-                  className="rounded-lg bg-[#d97757] px-3 py-2 text-sm font-medium text-black hover:brightness-110 disabled:opacity-40"
+                  onClick={finishLogin}
+                  disabled={claudeBusy || !loginUrl || !loginCode.trim()}
+                  className="rounded-lg bg-white/10 px-3 py-2 text-sm hover:bg-white/20 disabled:opacity-40"
                 >
-                  {claudeBusy ? 'Test en cours…' : 'Enregistrer et tester'}
+                  {claudeBusy && loginCode ? 'Vérification…' : 'Valider et tester'}
                 </button>
               </li>
             </ol>
-            {tokenResult && (
-              <p
-                className={`mt-3 text-xs ${tokenResult.ok ? 'text-[#7bbf6a]' : 'text-[#e0533c]'}`}
-                role="status"
-              >
-                {tokenResult.text}
+            {loginResult && (
+              <p className={`mt-3 text-xs ${loginResult.ok ? 'text-[#7bbf6a]' : 'text-[#e0533c]'}`} role="status">
+                {loginResult.text}
               </p>
             )}
             <p className="mt-3 text-[11px] text-white/35">
-              Ce token n'expire pas à chaque rafraîchissement et n'est jamais partagé avec une autre
-              machine : Claude Code reste connecté partout. Il est stocké sur le serveur (fichier en
-              accès restreint) et n'est plus jamais réaffiché.
+              Le dashboard obtient ses propres identifiants, qu'il rafraîchit seul : aucun Claude Code
+              n'est nécessaire sur cette machine, et ceux de tes autres machines restent connectés.
+              Ils sont stockés sur le serveur (fichier en accès restreint) et jamais réaffichés.
             </p>
           </div>
 
@@ -401,10 +423,8 @@ export function ConfigPage() {
             </summary>
             <p className="mb-3 rounded-lg border border-[#e0a458]/30 bg-[#e0a458]/10 p-2 text-[11px] text-[#e0c08a]">
               ⚠ Partager les credentials d'une machine où Claude Code est utilisé déconnectera l'une
-              des deux : quand l'une rafraîchit le token, l'autre perd l'accès. Préfère le token
-              longue durée ci-dessus.
-              {connection?.source === 'long-token' &&
-                ' Tant qu’un token longue durée est enregistré, ces credentials sont ignorés.'}
+              des deux : quand l'une rafraîchit le token, l'autre perd l'accès. Préfère la connexion
+              ci-dessus. Importer remplace la connexion actuelle du dashboard.
             </p>
             <label className="mb-1 block text-xs text-white/60">Fichier de credentials</label>
             <div className="flex gap-2">

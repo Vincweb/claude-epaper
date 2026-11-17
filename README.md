@@ -81,27 +81,29 @@ Authorization: Bearer <access_token>
 anthropic-beta: oauth-2025-04-20
 ```
 
-Le token utilisé vient, par ordre de priorité, de :
+L'app a besoin d'un accès OAuth à ton compte Claude. Deux façons de le lui donner :
 
-1. **Un token longue durée** (recommandé) généré par `claude setup-token` sur
-   n'importe quelle machine où Claude Code est installé, puis collé dans
-   **Config → Connexion à Claude**. Il est testé avant d'être enregistré
-   (`CONFIG_DIR/claude-token.json`, permissions 600), n'a pas de refresh token et
-   n'est **jamais rafraîchi** : Claude Code reste connecté sur ta machine. S'il
-   est un jour refusé (401 : expiré ou révoqué), le dashboard l'indique et l'app
-   cesse de l'utiliser jusqu'à ce que tu en colles un nouveau.
-2. **Les credentials de Claude Code** (mécanisme historique) : lus depuis
-   `~/.claude/.credentials.json` ou le trousseau macOS, copiés dans
-   `CONFIG_DIR/credentials.json` et rafraîchis automatiquement. ⚠ Partager ces
-   credentials avec une machine où Claude Code est utilisé finit par
-   déconnecter l'une des deux (chaque refresh invalide l'autre copie).
+1. **Connexion depuis le dashboard** (recommandé) : **Config → Connexion à
+   Claude → Se connecter à Claude**. Tu autorises l'accès sur claude.ai, tu
+   recolles le code affiché, et l'app obtient **ses propres identifiants**,
+   qu'elle rafraîchit seule. Claude Code n'a pas besoin d'être installé sur la
+   machine, et tes autres machines restent connectées.
+2. **Import des credentials de Claude Code** (section « Avancé ») : copie de
+   `~/.claude/.credentials.json` ou du trousseau macOS, rafraîchie
+   automatiquement. ⚠ Ces identifiants sont alors partagés : quand une machine
+   les rafraîchit, l'autre est déconnectée.
 
-L'app met en cache le résultat et le diffuse en temps réel (SSE) au dashboard et
-au moteur de rendu. Le token n'est jamais renvoyé par l'API ni écrit dans les
-logs : seuls ses 4 derniers caractères et sa date d'enregistrement sont affichés.
+> [!NOTE]
+> Un token `claude setup-token` ne suffit pas : il ne donne que le droit
+> d'utiliser Claude (`user:inference`), alors que l'endpoint des limites exige
+> `user:profile` (réponse 403).
+
+Les identifiants vivent dans `CONFIG_DIR/credentials.json` (permissions 600) et
+ne sont jamais renvoyés par l'API ni écrits dans les logs. L'app met en cache le
+résultat et le diffuse en temps réel (SSE) au dashboard et au moteur de rendu.
 
 > [!WARNING]
-> Cet endpoint **n'est pas une API publique documentée**. Réutiliser le token OAuth de Claude Code dans un outil tiers se situe en zone grise vis-à-vis des CGU d'Anthropic. Projet **personnel**, à utiliser à tes risques.
+> Cet endpoint **n'est pas une API publique documentée**. Réutiliser le client OAuth public de Claude Code (connexion depuis le dashboard) ou ses tokens dans un outil tiers se situe en zone grise vis-à-vis des CGU d'Anthropic. Projet **personnel**, à utiliser à tes risques.
 
 ## 🛠️ Matériel
 
@@ -133,16 +135,10 @@ make run                # app :8787 + boucle e-paper si la dalle est branchée (
 **Première connexion :** le dashboard te demande de créer une **passkey**
 (Touch ID / Face ID / clé de sécurité) et affiche un **code de récupération** (en
 QR) à sauvegarder. Ensuite, branche tes limites dans **Config → Connexion à
-Claude** :
-
-```bash
-claude setup-token     # sur n'importe quelle machine où Claude Code est installé
-```
-
-Colle le token affiché dans le champ prévu, puis **Enregistrer et tester** :
-le dashboard répond « Connecté : 5 h xx %, 7 j xx % » ou l'erreur exacte (token
-invalide/expiré, droits insuffisants, réseau…). L'ancien import des credentials
-Claude Code reste disponible dans la section **Avancé**.
+Claude** : **Se connecter à Claude** ouvre la page d'autorisation de Claude ;
+recolle le code affiché puis **Valider et tester**. Le dashboard répond
+« Connecté : 5 h xx %, 7 j xx % » ou l'erreur exacte. L'ancien import des
+credentials Claude Code reste disponible dans la section **Avancé**.
 
 **Au boot :**
 

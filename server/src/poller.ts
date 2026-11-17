@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
-import { markLongTokenRejected, resolveAccess, type ConnectionInfo } from './credentials.js';
-import { fetchUsage, redactSecrets, UsageError } from './usage.js';
+import { resolveAccess, type ConnectionInfo } from './credentials.js';
+import { fetchUsage, redactSecrets } from './usage.js';
 import { loadConfig, saveConfig } from './config.js';
 import {
   deriveStats,
@@ -13,9 +13,12 @@ import {
 import { customPoses, findPose, resolvePose, rotationPoses } from './poses.js';
 import type { PollerState, UsageSnapshot } from './types.js';
 
-/** Message d'état quand le token longue durée reçoit un 401. */
-export const TOKEN_REJECTED_MSG =
-  'token longue durée refusé (401) : expiré ou révoqué — régénère-le avec « claude setup-token »';
+/** Refresh refusé (400/401) : la connexion est expirée ou révoquée, il faut se reconnecter. */
+function friendlyAccessError(error: string): string {
+  return /^refresh failed: (400|401)\b/.test(error)
+    ? 'connexion à Claude expirée ou révoquée (refresh refusé) — reconnecte-toi dans Config'
+    : redactSecrets(error);
+}
 
 /**
  * Poll périodiquement l'endpoint usage, met en cache le dernier état,
@@ -27,7 +30,7 @@ export class UsagePoller extends EventEmitter {
     snapshot: null,
     authenticated: false,
     lastError: null,
-    connection: { source: 'none', tokenLast4: null, tokenSavedAt: null, tokenRejected: false },
+    connection: { source: 'none', connectedAt: null, account: null },
     lastFetchedAt: null,
     lastActivityAt: null,
     usageXp: loadConfig().usageXp,
@@ -150,20 +153,15 @@ export class UsagePoller extends EventEmitter {
   }
 
   async tick(): Promise<void> {
-    let used: { source: ConnectionInfo['source']; token: string } | null = null;
     try {
       const { info, accessToken, error } = await resolveAccess();
       this.state.connection = info;
-      if (accessToken) used = { source: info.source, token: accessToken };
       if (!accessToken) {
-        // Échec du refresh (credentials Claude Code) : comportement historique,
-        // seule l'erreur change. Sinon : pas de source, ou token longue durée
-        // refusé → on n'appelle plus l'API (pas de boucle de 401) et on ne
-        // retombe pas sur les credentials Claude Code.
-        if (error) this.state.lastError = redactSecrets(error);
+        // Échec du refresh : comportement historique, seule l'erreur change.
+        if (error) this.state.lastError = friendlyAccessError(error);
         else {
           this.state.authenticated = false;
-          this.state.lastError = info.tokenRejected ? TOKEN_REJECTED_MSG : 'no credentials';
+          this.state.lastError = 'no credentials';
         }
         this.recompute();
         this.emit('state', this.state);
@@ -172,15 +170,7 @@ export class UsagePoller extends EventEmitter {
       this.state.authenticated = true;
       this.ingest(await fetchUsage(accessToken));
     } catch (e) {
-      if (e instanceof UsageError && e.status === 401 && used?.source === 'long-token') {
-        // Token remplacé pendant l'appel : on ignore ce résultat périmé.
-        if (!markLongTokenRejected(used.token)) return;
-        this.state.connection = { ...this.state.connection, tokenRejected: true };
-        this.state.authenticated = false;
-        this.state.lastError = TOKEN_REJECTED_MSG;
-      } else {
-        this.state.lastError = redactSecrets(e instanceof Error ? e.message : String(e));
-      }
+      this.state.lastError = redactSecrets(e instanceof Error ? e.message : String(e));
       this.recompute();
       this.emit('state', this.state);
     }

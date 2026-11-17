@@ -8,12 +8,13 @@ import QRCode from 'qrcode';
 import { poller } from '../poller.js';
 import { loadConfig, saveConfig } from '../config.js';
 import {
-  deleteLongToken,
+  connectionInfo,
+  deleteStore,
+  exchangeDashboardCode,
   importFromSource,
-  longTokenFormatError,
-  normalizeLongToken,
-  resolveAccess,
-  saveLongToken,
+  LoginError,
+  saveStore,
+  startDashboardLogin,
 } from '../credentials.js';
 import { fetchUsage, redactSecrets, UsageError } from '../usage.js';
 import { normalizeLayout, renderEpaperPng } from '../render.js';
@@ -366,27 +367,23 @@ apiRouter.post('/auth/import', requireAuth, (_req, res) => {
   res.json({ imported: Boolean(creds) });
 });
 
-/* ------------------- connexion à Claude (token longue durée) ------------------- */
-// ⚠ Le token n'apparaît JAMAIS dans une réponse, un log ou le SSE : seuls ses
-// 4 derniers caractères et sa date d'enregistrement sont exposés.
+/* ------------------ connexion à Claude (OAuth depuis le dashboard) ------------------ */
+// Identifiants PROPRES à l'app (aucun Claude Code ne les rafraîchit). ⚠ Aucun
+// jeton n'apparaît dans une réponse, un log ou le SSE.
 
-/** Source active : « long-token », « claude-code » ou « none ». */
+/** Source active : « dashboard », « claude-code » (import) ou « none ». */
 apiRouter.get('/claude/connection', requireAuth, (_req, res) => {
   res.json(poller.state.connection);
 });
 
 /** Traduit un échec de l'appel de test en message clair (et en statut HTTP de NOTRE API :
  * jamais 401, réservé à la session du dashboard). */
-function tokenTestError(e: unknown, token: string): { status: number; code: string; error: string } {
+function usageTestError(e: unknown): { status: number; code: string; error: string } {
   if (e instanceof UsageError) {
-    if (e.status === 401) {
-      const hint = token.startsWith('sk-ant-api')
-        ? ' Ceci ressemble à une clé d’API Console, pas à un token « claude setup-token ».'
-        : ' Régénère-le avec « claude setup-token ».';
-      return { status: 400, code: 'invalid', error: `Token invalide ou expiré (401).${hint}` };
-    }
+    if (e.status === 401)
+      return { status: 400, code: 'invalid', error: 'Connexion refusée par l’API (401) : recommence depuis « Se connecter à Claude ».' };
     if (e.status === 403)
-      return { status: 400, code: 'forbidden', error: 'Droits insuffisants (403) : ce token ne permet pas de lire les limites du compte.' };
+      return { status: 400, code: 'forbidden', error: 'Droits insuffisants (403) : cette connexion ne permet pas de lire les limites du compte.' };
     if (e.status === 429)
       return { status: 502, code: 'rate-limited', error: 'Trop de requêtes (429) : réessaie dans quelques minutes.' };
     if (e.status === null)
@@ -396,34 +393,45 @@ function tokenTestError(e: unknown, token: string): { status: number; code: stri
   return { status: 500, code: 'internal', error: redactSecrets(e instanceof Error ? e.message : String(e)) };
 }
 
-/** Enregistre un token « claude setup-token » : testé d'abord, enregistré seulement si l'appel réussit. */
-apiRouter.post('/claude/token', requireAuth, async (req, res) => {
-  const token = normalizeLongToken(req.body?.token);
-  const formatError = longTokenFormatError(token);
-  if (formatError) {
-    res.status(400).json({ code: 'format', error: formatError });
+/** Étape 1 : renvoie l'URL d'autorisation Claude à ouvrir (PKCE, valable 10 min). */
+apiRouter.post('/claude/login/start', requireAuth, (_req, res) => {
+  res.json({ url: startDashboardLogin() });
+});
+
+/** Étape 2 : échange le code `code#state` affiché par Claude, teste l'endpoint usage
+ * et n'enregistre les identifiants que si ce test réussit. */
+apiRouter.post('/claude/login/finish', requireAuth, async (req, res) => {
+  let creds;
+  try {
+    creds = await exchangeDashboardCode(req.body?.code);
+  } catch (e) {
+    if (e instanceof LoginError) {
+      res.status(e.code === 'network' ? 502 : 400).json({ code: e.code, error: e.message });
+    } else {
+      res.status(500).json({ code: 'internal', error: redactSecrets(e instanceof Error ? e.message : String(e)) });
+    }
     return;
   }
   try {
-    const snap = await fetchUsage(token);
-    saveLongToken(token);
-    const { info } = await resolveAccess();
-    poller.ingest(snap, info);
+    const snap = await fetchUsage(creds.accessToken);
+    saveStore(creds);
+    const connection = connectionInfo(creds);
+    poller.ingest(snap, connection);
     res.json({
       ok: true,
       fiveHour: snap.fiveHour.utilization,
       sevenDay: snap.sevenDay.utilization,
-      connection: info,
+      connection,
     });
   } catch (e) {
-    const { status, code, error } = tokenTestError(e, token);
+    const { status, code, error } = usageTestError(e);
     res.status(status).json({ code, error });
   }
 });
 
-/** Supprime le token longue durée → retour au mécanisme précédent (credentials Claude Code). */
-apiRouter.delete('/claude/token', requireAuth, async (_req, res) => {
-  deleteLongToken();
+/** Se déconnecter : oublie les identifiants gérés (connexion ou import). */
+apiRouter.delete('/claude/login', requireAuth, async (_req, res) => {
+  deleteStore();
   await poller.tick();
   res.json({ ok: true, connection: poller.state.connection });
 });

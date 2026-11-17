@@ -20,33 +20,41 @@ export async function importCredentials(): Promise<{ imported: boolean }> {
   return r.json();
 }
 
-/* --------------- connexion à Claude (token `claude setup-token`) --------------- */
+/* ------------------- connexion à Claude (OAuth depuis le dashboard) ------------------- */
 
 export async function getClaudeConnection(): Promise<ConnectionInfo> {
   return (await fetch('/api/claude/connection')).json();
 }
 
-export interface SaveTokenResult {
+/** Étape 1 : URL d'autorisation Claude à ouvrir (valable 10 min). */
+export async function startClaudeLogin(): Promise<string> {
+  const r = await fetch('/api/claude/login/start', { method: 'POST' });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.url) throw new Error(j.error ?? `Échec (${r.status})`);
+  return j.url as string;
+}
+
+export interface LoginResult {
   fiveHour: number;
   sevenDay: number;
   connection: ConnectionInfo;
 }
 
-/** Teste le token puis l'enregistre (seulement si le test réussit). Lève l'erreur exacte sinon. */
-export async function saveClaudeToken(token: string): Promise<SaveTokenResult> {
-  const r = await fetch('/api/claude/token', {
+/** Étape 2 : échange le code affiché par Claude, teste, enregistre. Lève l'erreur exacte sinon. */
+export async function finishClaudeLogin(code: string): Promise<LoginResult> {
+  const r = await fetch('/api/claude/login/finish', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token }),
+    body: JSON.stringify({ code }),
   });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error ?? `Échec (${r.status})`);
-  return j as SaveTokenResult;
+  return j as LoginResult;
 }
 
-/** Supprime le token longue durée (retour aux credentials Claude Code). */
-export async function deleteClaudeToken(): Promise<ConnectionInfo> {
-  const r = await fetch('/api/claude/token', { method: 'DELETE' });
+/** Se déconnecter : oublie les identifiants gérés. */
+export async function logoutClaude(): Promise<ConnectionInfo> {
+  const r = await fetch('/api/claude/login', { method: 'DELETE' });
   return (await r.json()).connection;
 }
 

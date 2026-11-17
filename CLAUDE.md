@@ -93,21 +93,28 @@ affichent toujours la même chose (pose, niveau, stats).
   rotation) et looks composés (`looks`) ; `resolvePose`, `customPoses`,
   `rotationPoses`, `findPose`. Une humeur perso sans look prend un look
   **déterministe tiré de son nom** (`lookFromName`, graine `seed` figée à la création).
-- `credentials.ts` : **deux sources** de credentials, résolues par un seul
-  `resolveAccess()` (appelé par `poller.tick()`, qui range `connection` dans
-  l'état) :
-  1. **Token longue durée** (`claude setup-token`, recommandé) —
-     `CONFIG_DIR/claude-token.json` (600), utilisé tel quel, **jamais
-     rafraîchi**. Prioritaire : s'il existe, les credentials Claude Code ne sont
-     même pas lus. Un 401 le marque `rejectedAt` (persisté) → plus aucun appel
-     ni repli tant qu'il n'est pas remplacé/supprimé (`tokenRejected` dans l'état).
-  2. **Credentials Claude Code** (historique, inchangé) — copie gérée
-     `CONFIG_DIR/credentials.json` importée de `~/.claude/.credentials.json` /
-     trousseau macOS, rafraîchie via le refresh token. ⚠ Partagée entre deux
-     machines, un refresh d'un côté déconnecte l'autre.
-  `connection` = `{ source: 'long-token'|'claude-code'|'none', tokenLast4,
-  tokenSavedAt, tokenRejected }`. **Le token n'est jamais exposé** (réponses,
-  SSE, logs, `config.json`) ; `redactSecrets` masque tout `sk-ant-…` des erreurs.
+- `credentials.ts` : une seule copie gérée, `CONFIG_DIR/credentials.json`
+  (600), rafraîchie par l'app (refresh token à rotation, **un seul refresh à la
+  fois**). Son champ `origin` dit d'où elle vient :
+  1. **`dashboard`** (recommandé) — connexion OAuth lancée depuis Config, même
+     flux que `claude` → /login en mode « code à recopier » : PKCE S256,
+     `claude.com/cai/oauth/authorize`, redirection
+     `platform.claude.com/oauth/code/callback` qui affiche `code#state`, échange
+     sur `platform.claude.com/v1/oauth/token` (client_id public de Claude Code,
+     scopes `user:profile user:inference`). Identifiants **propres à l'app** :
+     aucun Claude Code ne les rafraîchit, donc personne ne se fait déconnecter,
+     et Claude Code n'a pas besoin d'être installé sur le Pi.
+  2. **`import`** (historique) — copie de `~/.claude/.credentials.json` /
+     trousseau macOS (« Avancé » de Config, ou import auto s'il n'y a pas de
+     store). ⚠ Partagée avec un Claude Code : un refresh d'un côté déconnecte
+     l'autre.
+  ⚠ `claude setup-token` ne convient PAS : ses tokens n'ont que
+  `user:inference`, l'endpoint usage exige `user:profile` (403).
+  `resolveAccess()` (appelé par `poller.tick()`) détermine la source AVANT le
+  refresh → `connection` = `{ source: 'dashboard'|'claude-code'|'none',
+  connectedAt, account }` reste juste même si le refresh échoue. **Aucun jeton
+  n'est exposé** (réponses, SSE, logs, `config.json`) ; `redactSecrets` masque
+  tout `sk-ant-…` des erreurs.
 - `usage.ts` : `fetchUsage` (timeout 15 s) lève `UsageError` avec `status`
   (`null` = réseau).
 - `auth.ts` : WebAuthn + code de récup (fichier `CONFIG_DIR/auth.json`),
@@ -136,13 +143,15 @@ affichent toujours la même chose (pose, niveau, stats).
 - `POST /auth/register/{options,verify}` · `/auth/login/{options,verify}` ·
   `/auth/recover` · `/auth/logout` · `GET /auth/state` · `POST /auth/import`
   (import des credentials Claude Code — section « Avancé » de Config).
-- `GET /claude/connection` (source active, fin du token, date, `tokenRejected`) ·
-  `POST /claude/token` `{token}` — nettoie (blancs retirés) et valide la forme,
-  **appelle aussitôt l'endpoint usage** et n'enregistre que si l'appel réussit ;
-  renvoie `{fiveHour, sevenDay, connection}` ou `{code, error}` (`format`,
-  `invalid` = 401, `forbidden` = 403, `rate-limited`, `network`, `upstream` ;
-  jamais un 401 HTTP, réservé à la session) · `DELETE /claude/token` (retour aux
-  credentials Claude Code).
+- `GET /claude/connection` (source active, compte, date) ·
+  `POST /claude/login/start` → `{url}` d'autorisation (PKCE, valable 10 min, une
+  seule connexion en attente) · `POST /claude/login/finish` `{code}` (`code#state`
+  collé) — échange, **appelle aussitôt l'endpoint usage** et n'enregistre que si
+  l'appel réussit ; renvoie `{fiveHour, sevenDay, connection}` ou `{code, error}`
+  (`no-pending`, `format`, `state`, `exchange`, `network`, `invalid`,
+  `forbidden`, `rate-limited`, `upstream` ; jamais un 401 HTTP, réservé à la
+  session) · `DELETE /claude/login` (se déconnecter : supprime la copie gérée ;
+  l'import auto peut reprendre des credentials Claude Code locaux).
 - `GET|POST|DELETE /auth/token` — clé d'API (Bearer) pour l'**app iOS / widget**
   (projet séparé `MacOS/ClawdWidget`). `requireAuth` accepte en plus `Authorization: Bearer <clé>`
   (ou `X-API-Key`). `POST`/`GET` renvoient aussi un deep-link `clawd://setup?base=&key=`
@@ -182,8 +191,7 @@ node scripts/gen-assets.mjs    # régénère les visuels docs/ (build serveur re
   `buildHorizontal`/`buildVertical` depuis `server/dist/render.js` avec un
   `tick` figé (cf. `gen-assets.mjs`).
 - **Config** persistée dans `CONFIG_DIR` (défaut `~/.claude-epaper/`) :
-  `config.json`, `claude-token.json` (token longue durée, 600),
-  `credentials.json` (copie gérée), `auth.json`, `poses.json`.
+  `config.json`, `credentials.json` (identifiants Claude gérés, 600), `auth.json`, `poses.json`.
 - **Auth** : passkey unique ; supprimer `auth.json` réinitialise. WebAuthn exige
   HTTPS ou `localhost`.
 

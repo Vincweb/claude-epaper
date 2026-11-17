@@ -10,15 +10,14 @@ export interface UsageSnapshot {
   fetchedAt: string;
 }
 
-export type CredentialSource = 'long-token' | 'claude-code' | 'none';
+/** `dashboard` = connexion propre à l'app ; `claude-code` = credentials importés (partagés). */
+export type CredentialSource = 'dashboard' | 'claude-code' | 'none';
 
-/** Source des credentials active (le token n'est jamais exposé, seulement sa fin). */
+/** Source des credentials active (aucun jeton n'est exposé). */
 export interface ConnectionInfo {
   source: CredentialSource;
-  tokenLast4: string | null;
-  tokenSavedAt: string | null;
-  /** Token longue durée refusé (401) : expiré ou révoqué, à régénérer. */
-  tokenRejected: boolean;
+  connectedAt: string | null;
+  account: string | null;
 }
 
 export interface PollerState {
