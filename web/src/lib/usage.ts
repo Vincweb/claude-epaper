@@ -24,6 +24,8 @@ export interface PollerState {
   snapshot: UsageSnapshot | null;
   authenticated: boolean;
   lastError: string | null;
+  /** Données à jour pour l'affichage (même verdict que la dalle). */
+  online?: boolean;
   connection?: ConnectionInfo;
   lastFetchedAt: string | null;
   /** Dernière fois qu'une conso a bougé (détection d'inactivité). */
@@ -71,30 +73,34 @@ export function moodFor(util: number, t: AppConfig['thresholds']): Mood {
   return 'calm';
 }
 
-/** L'humeur globale suit la fenêtre la plus contrainte. */
-export function overallMood(snap: UsageSnapshot, t: AppConfig['thresholds']): Mood {
-  const worst = Math.max(snap.fiveHour.utilization, snap.sevenDay.utilization);
-  return moodFor(worst, t);
-}
-
+/** Couleurs franches par palier (lisibles d'un coup d'œil, pas 4 nuances d'orange). */
 const MOOD_COLOR: Record<Mood, string> = {
-  // Dégradé terracotta -> rouge, comme Clawd qui rougit quand ça chauffe.
-  calm: '#d97757',
-  alert: '#dd6a44',
-  worried: '#db5334',
+  calm: '#7bbf6a',
+  alert: '#e0a458',
+  worried: '#e57a3c',
   panic: '#e5352a',
+};
+
+/** Libellés alignés sur les poses de stress de Clawd. */
+export const MOOD_LABEL: Record<Mood, string> = {
+  calm: 'tranquille',
+  alert: 'sous pression',
+  worried: 'stressé',
+  panic: 'cramé',
 };
 
 export function moodColor(mood: Mood): string {
   return MOOD_COLOR[mood];
 }
 
-/** Palette e-paper tri-color (type Waveshare noir/blanc/rouge). */
-export const EPAPER = {
-  paper: '#e7e3d8',
-  ink: '#1b1b1a',
-  red: '#b23a2e',
-} as const;
+/** Message d'erreur du poller (technique, parfois en anglais) → phrase lisible. */
+export function describeError(error: string): string {
+  if (error === 'no credentials') return 'Aucune connexion à Claude';
+  if (/^usage failed: 429\b/.test(error)) return 'API Claude saturée (429), nouvel essai bientôt';
+  if (/^usage failed: 401\b/.test(error)) return 'Accès refusé par l’API (401)';
+  if (/^usage failed: réseau/.test(error)) return 'Réseau indisponible';
+  return error;
+}
 
 /** "dans 2 h 14" à partir d'une date ISO de reset. */
 export function formatReset(resetsAt: string | null): string {
@@ -120,32 +126,6 @@ export interface Stat {
   value: number;
 }
 
-const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
-
-/**
- * Stats façon Tamagotchi dérivées de la conso + l'activité :
- * énergie (5h), forme (7j), repu (se vide sans activité), bonheur (moyenne).
- */
-export function deriveStats(opts: {
-  snap: UsageSnapshot;
-  lastActivityAt: string | null;
-}): Stat[] {
-  const energie = clamp(100 - opts.snap.fiveHour.utilization);
-  const forme = clamp(100 - opts.snap.sevenDay.utilization);
-  const inactiveMin = opts.lastActivityAt
-    ? (Date.now() - new Date(opts.lastActivityAt).getTime()) / 60_000
-    : 0;
-  // Repu tombe à 0 après ~6 h sans coder.
-  const repu = clamp(100 - (inactiveMin / 360) * 100);
-  const bonheur = clamp((energie + forme + repu) / 3);
-  return [
-    { key: 'energie', label: 'Énergie', icon: '⚡', value: energie },
-    { key: 'forme', label: 'Forme', icon: '💪', value: forme },
-    { key: 'repu', label: 'Repu', icon: '🍔', value: repu },
-    { key: 'bonheur', label: 'Bonheur', icon: '😊', value: bonheur },
-  ];
-}
-
 export const STAT_ICONS: Record<string, string> = {
   energie: '⚡',
   forme: '💪',
@@ -157,24 +137,6 @@ export function statColor(value: number): string {
   if (value >= 50) return '#7bbf6a';
   if (value >= 25) return '#e0a458';
   return '#e0533c';
-}
-
-const XP_PER_LEVEL = 100;
-
-/**
- * Âge + niveau de Clawd. Le niveau monte avec le temps (1/semaine) ET avec
- * l'usage (chaque tranche de conso cumulée fait gagner un niveau).
- */
-export function levelInfo(
-  bornAt: string,
-  usageXp = 0,
-): { days: number; level: number; label: string; xpInLevel: number; xpToLevel: number } {
-  const t = bornAt ? new Date(bornAt).getTime() : Date.now();
-  const ms = Math.max(0, Date.now() - t);
-  const days = Math.floor(ms / 86_400_000);
-  const level = 1 + Math.floor(days / 7) + Math.floor(usageXp / XP_PER_LEVEL);
-  const label = days >= 1 ? `${days} j` : `${Math.floor(ms / 3_600_000)} h`;
-  return { days, level, label, xpInLevel: Math.round(usageXp % XP_PER_LEVEL), xpToLevel: XP_PER_LEVEL };
 }
 
 /* ----------------------------- Poses de Clawd ----------------------------- */

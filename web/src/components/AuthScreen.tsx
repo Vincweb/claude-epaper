@@ -7,13 +7,13 @@ type Props = { configured: boolean; onAuthenticated: () => void };
 export function AuthScreen({ configured, onAuthenticated }: Props) {
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#1a1613] p-6 shadow-2xl">
+      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-panel p-6 shadow-2xl">
         <div className="mb-4 flex flex-col items-center text-center">
           {/* Clawd « Tranquille » dessiné en direct : pas encore connecté, donc le look
               par défaut (la personnalisation de l'utilisateur n'est pas publique). */}
           <ClawdLive look={{ eyes: 'square', motion: 'idle' }} size={120} gaze />
           <h1 className="text-xl font-semibold">Claude e-paper</h1>
-          <p className="text-xs text-white/40">avec Clawd, ta mascotte</p>
+          <p className="text-xs text-white/55">avec Clawd, ta mascotte</p>
         </div>
         {configured ? (
           <Login onAuthenticated={onAuthenticated} />
@@ -71,7 +71,7 @@ function Setup({ onAuthenticated }: { onAuthenticated: () => void }) {
         >
           Copier le code
         </button>
-        <p className="text-xs text-white/40">
+        <p className="text-xs text-white/55">
           Ce code n'est affiché qu'une fois. Il est aussi stocké (haché) sur la machine
           dans <code>~/.claude-epaper/auth.json</code> — un accès direct au Pi permet de le
           réinitialiser en supprimant ce fichier.
@@ -83,7 +83,7 @@ function Setup({ onAuthenticated }: { onAuthenticated: () => void }) {
         <button
           disabled={!saved}
           onClick={onAuthenticated}
-          className="w-full rounded-lg bg-[#d97757] py-2 text-sm font-medium text-black disabled:opacity-40"
+          className="w-full rounded-lg bg-accent py-2 text-sm font-medium text-black disabled:opacity-40"
         >
           Entrer dans le dashboard
         </button>
@@ -97,15 +97,15 @@ function Setup({ onAuthenticated }: { onAuthenticated: () => void }) {
         Première connexion : protège ce dashboard avec une <strong>passkey</strong>
         (Touch ID, Face ID, ou clé de sécurité).
       </p>
-      {error && <p className="text-sm text-[#e0806a]">{error}</p>}
+      {error && <p className="text-sm text-bad-soft">{error}</p>}
       <button
         disabled={busy}
         onClick={create}
-        className="w-full rounded-lg bg-[#d97757] py-2.5 text-sm font-medium text-black disabled:opacity-50"
+        className="w-full rounded-lg bg-accent py-2.5 text-sm font-medium text-black disabled:opacity-50"
       >
         {busy ? 'Création…' : 'Créer une passkey'}
       </button>
-      <p className="text-xs text-white/40">
+      <p className="text-xs text-white/55">
         Les passkeys nécessitent un accès sécurisé (HTTPS, ou <code>localhost</code>). Sur une
         IP LAN en HTTP, l'API navigateur est indisponible.
       </p>
@@ -140,8 +140,12 @@ function Login({ onAuthenticated }: { onAuthenticated: () => void }) {
     try {
       await recoverWithCode(code);
       onAuthenticated();
-    } catch {
-      setError('Code de récupération invalide.');
+    } catch (e) {
+      setError(
+        e instanceof Error && e.message === 'too-many-attempts'
+          ? 'Trop d’essais : patiente une minute avant de réessayer.'
+          : 'Code de récupération invalide.',
+      );
     } finally {
       setBusy(false);
     }
@@ -150,14 +154,14 @@ function Login({ onAuthenticated }: { onAuthenticated: () => void }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-white/70">Connexion requise.</p>
-      {error && <p className="text-sm text-[#e0806a]">{error}</p>}
+      {error && <p className="text-sm text-bad-soft">{error}</p>}
 
       {!useRecovery ? (
         <>
           <button
             disabled={busy}
             onClick={withPasskey}
-            className="w-full rounded-lg bg-[#d97757] py-2.5 text-sm font-medium text-black disabled:opacity-50"
+            className="w-full rounded-lg bg-accent py-2.5 text-sm font-medium text-black disabled:opacity-50"
           >
             {busy ? 'Connexion…' : 'Se connecter avec la passkey'}
           </button>
@@ -179,7 +183,7 @@ function Login({ onAuthenticated }: { onAuthenticated: () => void }) {
           <button
             disabled={busy || code.length < 5}
             onClick={withRecovery}
-            className="w-full rounded-lg bg-[#d97757] py-2.5 text-sm font-medium text-black disabled:opacity-50"
+            className="w-full rounded-lg bg-accent py-2.5 text-sm font-medium text-black disabled:opacity-50"
           >
             {busy ? 'Vérification…' : 'Se connecter'}
           </button>

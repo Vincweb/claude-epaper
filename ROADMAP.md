@@ -19,6 +19,8 @@
 - **Installation native packagée** : `Makefile` (install/run/update/services) + unités `systemd` + auto-update depuis le dashboard.
 - **Clé d'API + app iOS** : `GET|POST|DELETE /api/auth/token` (clé Bearer générée dans Config, QR d'appairage) ; `requireAuth` accepte `Authorization: Bearer`. App iPhone + **widget** natif (`MacOS/ClawdWidget`) qui affiche l'état (mascotte, jauges, stats, niveau) via `/api/usage`.
 
+- **Robustesse & UI (0.17)** : écritures JSON atomiques, exemption locale limitée à la dalle, config validée, backoff du polling, boucle e-paper qui encaisse les erreurs SPI et met la dalle en veille, mise à jour verrouillée avec retour arrière, cache du rendu, assets pré-compressés ; jauges par palier avec seuils, mobile (onglets en bas), Config découpée par section, modales accessibles, thème centralisé.
+
 ## 🎯 Priorités
 
 - [ ] **Robustesse du token OAuth** — la rotation du refresh token (quand Claude Code tourne en parallèle) invalide la copie stockée ; lire le token « vivant » à la demande plutôt que garder une copie, et gérer proprement l'expiration/ré-import.

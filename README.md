@@ -167,15 +167,20 @@ Réglages (variables d'environnement, dans [`epaper-push.service`](scripts/epape
 |---|---|---|
 | `EPD_MODEL` | `epd2in13_V4` | module `waveshare_epd` de ta dalle |
 | `POLL_SECONDS` | `1` | intervalle de tirage — anime à 1 image/s (n'écrit que si l'image a changé) |
-| `FULL_REFRESH_EVERY` | `900` | refresh complet tous les N partiels (garde-fou) |
+| `FULL_REFRESH_EVERY` | `1800` | refresh complet tous les N partiels (garde-fou) |
 | `FULL_REFRESH_SECONDS` | `1800` | refresh complet au moins toutes les X s (anti-ghosting) |
 | `EPAPER_THRESHOLD` | `160` | seuil de binarisation 0-255 (sous le seuil → noir) |
 | `REQUEST_TIMEOUT` | `20` | timeout (s) du fetch du PNG |
 | `RENDER_URL` | `http://localhost:8787/api/render.png` | URL du PNG |
+| `RENDER_API_KEY` | — | clé d'API (Config → Application iOS), seulement si le serveur n'est **pas** sur le Pi |
+| `LOG_EVERY_SECONDS` | `3600` | bilan d'activité dans le journal (plus de ligne par seconde) |
+
+La boucle encaisse les erreurs de la dalle (réinitialisation sans planter) et
+met la dalle en **veille** quand le service s'arrête.
 
 > Le rendu est généré **sans anti-aliasing** : l'onglet **e-paper** du dashboard
 > montre exactement ce que reçoit la dalle. Dalle montée à l'envers ? Coche
-> **Rotation 180°** dans ⚙︎ Config (l'aperçu web, lui, reste à l'endroit).
+> **Rotation 180°** sur la page **e-paper** (l'aperçu web, lui, reste à l'endroit).
 
 > ⚠️ La **mise à jour depuis le dashboard** (`self-update.sh`) fait `git pull` +
 > build + redémarre les process, mais **ne réinstalle pas les unités systemd**
@@ -201,8 +206,12 @@ connecte-toi avec le **code de récupération**. Les passkeys exigent un accès
 **HTTPS** (ton domaine) ou `localhost` ; sur une IP LAN en HTTP, utilise le code
 de récupération. L'auth (credential + code haché) vit dans `CONFIG_DIR/auth.json` :
 un accès direct à la machine permet de la réinitialiser en supprimant ce fichier.
-Les requêtes en **boucle locale** (la boucle e-paper sur le Pi) ne sont pas
-soumises à l'auth.
+Seule l'image de la dalle (`/api/render.png`) est servie sans authentification
+à la **boucle locale** (le script e-paper sur le Pi) — et seulement en accès
+direct : une requête relayée par un reverse proxy installé sur le Pi doit
+s'authentifier comme les autres. Si `auth.json` devient illisible, l'accès est
+verrouillé (supprime-le pour réinitialiser). Le code de récupération est limité
+à 5 essais par minute.
 
 ## 📁 Structure
 

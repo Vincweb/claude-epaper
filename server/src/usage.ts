@@ -8,10 +8,26 @@ export class UsageError extends Error {
   constructor(
     message: string,
     readonly status: number | null,
+    /** Délai demandé par l'API avant de réessayer (en-tête Retry-After), en ms. */
+    readonly retryAfterMs: number | null = null,
   ) {
     super(message);
     this.name = 'UsageError';
   }
+
+  /** Erreur passagère (réseau, saturation, panne côté API) : on réessaiera. */
+  get transient(): boolean {
+    return this.status === null || this.status === 429 || this.status >= 500;
+  }
+}
+
+/** En-tête Retry-After : secondes ou date HTTP. */
+function parseRetryAfter(v: string | null): number | null {
+  if (!v) return null;
+  const s = Number(v);
+  if (Number.isFinite(s)) return Math.max(0, s * 1000);
+  const t = Date.parse(v);
+  return Number.isNaN(t) ? null : Math.max(0, t - Date.now());
 }
 
 /** Masque tout ce qui ressemble à un token Anthropic (au cas où une réponse le renverrait). */
@@ -47,7 +63,7 @@ export async function fetchUsage(accessToken: string): Promise<UsageSnapshot> {
   }
   if (!res.ok) {
     const body = redactSecrets((await res.text().catch(() => '')).slice(0, 300));
-    throw new UsageError(`usage failed: ${res.status} ${body}`.trim(), res.status);
+    throw new UsageError(`usage failed: ${res.status} ${body}`.trim(), res.status, parseRetryAfter(res.headers.get('retry-after')));
   }
   const j = (await res.json()) as Record<string, unknown>;
   return {

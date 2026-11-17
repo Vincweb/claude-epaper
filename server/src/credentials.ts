@@ -3,6 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { getConfigDir, ensureConfigDir, loadConfig } from './config.js';
+import { writeJsonAtomic } from './fsutil.js';
 
 /** client_id public utilisé par Claude Code pour le flux OAuth. */
 const CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e';
@@ -104,9 +105,8 @@ export function loadStore(): OAuthCreds | null {
 export function saveStore(creds: OAuthCreds): void {
   ensureConfigDir();
   const p = storePath();
-  fs.writeFileSync(p, JSON.stringify(creds, null, 2), { mode: 0o600 });
-  // `mode` ne s'applique qu'à la création : on force aussi sur un fichier existant.
-  fs.chmodSync(p, 0o600);
+  // Atomique : une coupure pendant l'écriture perdrait le refresh token tout juste tourné.
+  writeJsonAtomic(p, creds, 0o600);
 }
 
 /** Oublie les credentials gérés (« Se déconnecter »). */
@@ -129,12 +129,27 @@ async function postToken(body: Record<string, unknown>): Promise<Record<string, 
   return (await res.json()) as Record<string, unknown>;
 }
 
+/**
+ * Refresh token refusé (400/401) : il ne redeviendra pas valide. On mémorise
+ * lequel pour ne plus solliciter l'endpoint token à chaque tick — jusqu'à ce
+ * que les identifiants changent (reconnexion, import).
+ */
+let refusedRefreshToken: string | null = null;
+let refusedMessage = '';
+
 async function doRefresh(creds: OAuthCreds): Promise<OAuthCreds> {
+  if (creds.refreshToken && creds.refreshToken === refusedRefreshToken) throw new Error(refusedMessage);
   let j: Record<string, unknown>;
   try {
     j = await postToken({ grant_type: 'refresh_token', refresh_token: creds.refreshToken, client_id: CLIENT_ID });
   } catch (e) {
-    throw new Error(`refresh failed: ${e instanceof Error ? e.message : String(e)}`);
+    const msg = `refresh failed: ${e instanceof Error ? e.message : String(e)}`;
+    const status = (e as { status?: number }).status;
+    if (status === 400 || status === 401) {
+      refusedRefreshToken = creds.refreshToken;
+      refusedMessage = msg;
+    }
+    throw new Error(msg);
   }
   const next: OAuthCreds = {
     ...creds, // conserve origine, date de connexion et compte
@@ -168,6 +183,16 @@ export async function getValidAccessToken(): Promise<string | null> {
     creds = await refreshToken(creds);
   }
   return creds.accessToken;
+}
+
+/**
+ * Force un refresh (l'API a répondu 401 alors que le token n'était pas censé
+ * avoir expiré : révoqué, horloge décalée…). Renvoie le nouveau token, ou null.
+ */
+export async function forceRefresh(): Promise<string | null> {
+  const creds = loadStore();
+  if (!creds?.refreshToken) return null;
+  return (await refreshToken(creds)).accessToken;
 }
 
 /* -------------------- connexion OAuth depuis le dashboard -------------------- */

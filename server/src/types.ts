@@ -24,6 +24,8 @@ export interface PollerState {
   snapshot: UsageSnapshot | null;
   authenticated: boolean;
   lastError: string | null;
+  /** Données à jour pour l'affichage (une erreur passagère récente ne compte pas). */
+  online: boolean;
   /** Source des credentials active (jamais le token : 4 derniers caractères au plus). */
   connection: ConnectionInfo;
   lastFetchedAt: string | null;

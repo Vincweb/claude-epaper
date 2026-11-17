@@ -1,3 +1,5 @@
+import { Modal } from './Modal';
+
 const RULES = [
   { icon: '⚡', label: 'Énergie', desc: "100 − utilisation de la fenêtre 5 h. Se vide quand tu consommes ton quota court terme, se recharge à chaque reset." },
   { icon: '💪', label: 'Forme', desc: '100 − utilisation de la fenêtre 7 j. Reflète ta marge sur la semaine.' },
@@ -7,21 +9,7 @@ const RULES = [
 
 export function StatsModal({ onClose }: { onClose: () => void }) {
   return (
-    <div
-      className="fixed inset-0 z-20 flex items-center justify-center bg-black/60 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-md rounded-2xl border border-white/10 bg-[#1a1613] p-6 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Les stats de Clawd</h2>
-          <button onClick={onClose} className="text-white/50 hover:text-white">
-            ✕
-          </button>
-        </div>
-
+    <Modal title="Les stats de Clawd" onClose={onClose} z="z-20">
         <div className="space-y-3">
           {RULES.map((r) => (
             <div key={r.label} className="flex gap-3">
@@ -49,11 +37,10 @@ export function StatsModal({ onClose }: { onClose: () => void }) {
               jauges 5 h / 7 j ajoute de l'XP.
             </li>
           </ul>
-          <p className="mt-2 text-xs text-white/40">
+          <p className="mt-2 text-xs text-white/55">
             Formule : niveau = 1 + ⌊jours/7⌋ + ⌊XP/100⌋.
           </p>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

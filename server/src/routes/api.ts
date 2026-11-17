@@ -6,7 +6,7 @@ import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import QRCode from 'qrcode';
 import { poller } from '../poller.js';
-import { loadConfig, saveConfig } from '../config.js';
+import { loadConfig, sanitizeConfigPatch, saveConfig } from '../config.js';
 import {
   connectionInfo,
   deleteStore,
@@ -40,7 +40,9 @@ import {
   isConfigured,
   issueSession,
   registrationOptions,
+  allowRecoveryAttempt,
   requireAuth,
+  requireAuthOrLocal,
   revokeApiToken,
   verifyAuthentication,
   verifyRecovery,
@@ -126,9 +128,13 @@ apiRouter.post('/auth/login/verify', async (req, res) => {
   }
 });
 
-apiRouter.post('/auth/recover', (req, res) => {
+apiRouter.post('/auth/recover', async (req, res) => {
   const code = typeof req.body?.code === 'string' ? req.body.code : '';
-  if (!code || !verifyRecovery(code)) {
+  if (!allowRecoveryAttempt()) {
+    res.status(429).json({ error: 'too-many-attempts' });
+    return;
+  }
+  if (!code || !(await verifyRecovery(code))) {
     res.status(401).json({ error: 'invalid-code' });
     return;
   }
@@ -175,11 +181,12 @@ apiRouter.delete('/auth/token', requireAuth, (_req, res) => {
 
 /* ------------------------------ rendu e-paper ------------------------------ */
 
-/** Aperçu / sortie physique : le PNG exact envoyé à l'e-paper (toujours N&B). */
-apiRouter.get('/render.png', requireAuth, (req, res) => {
+/** Aperçu / sortie physique : le PNG exact envoyé à l'e-paper (toujours N&B).
+ * Seule route ouverte à la boucle locale directe (script e-paper du Pi). */
+apiRouter.get('/render.png', requireAuthOrLocal, (req, res) => {
   try {
     const layout = normalizeLayout(req.query.layout);
-    const scale = req.query.scale ? Math.min(6, Math.max(1, Number(req.query.scale))) : undefined;
+    const scale = req.query.scale ? Math.min(6, Math.max(1, Number(req.query.scale) || 1)) : undefined;
     const rotate = req.query.rotate === '180' ? 180 : req.query.rotate === '0' ? 0 : undefined;
     const png = renderEpaperPng({ layout, scale, rotate });
     res.set('Content-Type', 'image/png');
@@ -305,7 +312,8 @@ apiRouter.get('/poses/:variant/:key', (req, res) => {
   try {
     const { buf, type } = readPoseAsset(parsed.variant, parsed.pose);
     res.set('Content-Type', type);
-    res.set('Cache-Control', 'no-store');
+    // Gardé en cache mais revalidé (ETag auto d'Express → 304 sans renvoyer l'image).
+    res.set('Cache-Control', 'no-cache');
     res.send(buf);
   } catch (e) {
     res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
@@ -332,6 +340,8 @@ apiRouter.get('/usage/stream', requireAuth, (req, res) => {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
+    // Désactive la mise en tampon des reverse proxies (nginx & co).
+    'X-Accel-Buffering': 'no',
   });
   res.flushHeaders();
 
@@ -339,7 +349,13 @@ apiRouter.get('/usage/stream', requireAuth, (req, res) => {
   send();
   const onState = () => send();
   poller.on('state', onState);
-  req.on('close', () => poller.off('state', onState));
+  // Commentaire SSE toutes les 25 s : un proxy qui coupe les connexions muettes
+  // (souvent après 60 s) garde le flux ouvert entre deux polls.
+  const ping = setInterval(() => res.write(': ping\n\n'), 25_000);
+  req.on('close', () => {
+    clearInterval(ping);
+    poller.off('state', onState);
+  });
 });
 
 /** Change la mascotte (pose aléatoire hors poses contextuelles). */
@@ -356,8 +372,12 @@ apiRouter.get('/config', requireAuth, (_req, res) => {
 });
 
 apiRouter.put('/config', requireAuth, (req, res) => {
-  const cfg = saveConfig(req.body ?? {});
-  poller.restart();
+  const before = loadConfig().pollIntervalMs;
+  // Champs validés et bornés ; `bornAt`/`usageXp` (gérés par le serveur) ignorés.
+  const cfg = saveConfig(sanitizeConfigPatch(req.body));
+  // Ne relance le polling (et donc un appel à l'API) que si l'intervalle change.
+  if (cfg.pollIntervalMs !== before) poller.restart();
+  else poller.refresh();
   res.json(cfg);
 });
 

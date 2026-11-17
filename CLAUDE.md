@@ -116,18 +116,40 @@ affichent toujours la même chose (pose, niveau, stats).
   n'est exposé** (réponses, SSE, logs, `config.json`) ; `redactSecrets` masque
   tout `sk-ant-…` des erreurs.
 - `usage.ts` : `fetchUsage` (timeout 15 s) lève `UsageError` avec `status`
-  (`null` = réseau).
-- `auth.ts` : WebAuthn + code de récup (fichier `CONFIG_DIR/auth.json`),
-  middleware `requireAuth` (bypass **boucle locale** pour la boucle e-paper).
+  (`null` = réseau), `retryAfterMs` et `transient` (réseau, 429, 5xx).
+- `poller.ts` : boucle `setTimeout` (un appel à la fois, `generation` contre
+  les doubles boucles après `restart`). **Backoff** sur erreur passagère
+  (15 s ×2 → 15 min, `Retry-After` respecté) ; refresh refusé (400/401) **non
+  retenté** jusqu'à reconnexion (`refusedRefreshToken`) ; usage 401 → un refresh
+  forcé (`forceRefresh`) puis un seul nouvel essai. `state.online` (lu par la
+  dalle) tolère une erreur passagère tant que les données ont < 10 min.
+- `auth.ts` : WebAuthn + code de récup (fichier `CONFIG_DIR/auth.json`).
+  `requireAuth` = clé d'API ou session ; **seul** `GET /render.png` accepte la
+  boucle locale directe (`requireAuthOrLocal`), refusée dès qu'un en-tête de
+  proxy (`X-Forwarded-*`, `Forwarded`) est présent (proxy sur le Pi ≠ local).
+  `auth.json` illisible = accès **verrouillé** (jamais « non configuré »).
+  `/auth/recover` : scrypt asynchrone + 5 essais/min (global).
+- `fsutil.ts` : `writeJsonAtomic` (tmp + fsync + rename) pour TOUS les JSON de
+  `CONFIG_DIR` (carte SD : une coupure ne laisse pas de fichier tronqué).
+- `config.ts` : `sanitizeConfigPatch` borne/valide tout `PUT /config`
+  (intervalle 30 s–1 h, seuils 1-100 remis dans l'ordre) et ignore
+  `usageXp`/`bornAt` (gérés par le serveur).
 - `routes/api.ts` : endpoints (voir ci-dessous).
-- Web : `App.tsx` gère l'auth (Setup/Login) puis le `Layout` routé ; pages dans
-  `web/src/pages/` (`ScreenPage`, `EpaperPage`, `HumeursPage`, `ConfigPage`).
+- Web : `App.tsx` gère l'auth (Setup/Login) puis le `Layout` routé (onglets en
+  bas sur mobile, pages secondaires en `lazy`, `ErrorBoundary`, état du flux SSE
+  `live`) ; pages dans `web/src/pages/` (`ScreenPage`, `EpaperPage` + réglages
+  de la dalle, `HumeursPage` + réglages de Clawd, `ConfigPage` = sections de
+  `pages/config/`). Chaque section enregistre **ses seuls champs**
+  (`useConfigDraft`, `components/ui.tsx`). Couleurs = jetons `@theme`
+  (`accent`, `ok`, `warn`, `bad`, `panel`…) dans `index.css`, jamais d'hexa en
+  dur. Modales via `components/Modal.tsx` (dialog, Échap, focus).
 
 ## Endpoints clés (`/api`)
 
 - `GET /render.png?layout=horizontal|vertical&rotate=&scale=` — PNG N&B de la
-  dalle (auth ; boucle locale exemptée). L'aperçu web force `rotate=0` et se
-  rafraîchit chaque seconde (animations). Anciennes valeurs de layout acceptées.
+  dalle (auth ; boucle locale directe exemptée). L'aperçu web force `rotate=0`
+  et se rafraîchit chaque seconde (animations, en pause onglet caché). PNG mis
+  en cache (LRU indexé par le SVG). Anciennes valeurs de layout acceptées.
 - `GET /poses` (liste + look + flags `special`/`userAdded`/`lookCustom`/animé,
   catalogue des pièces) · `GET /poses/:variant/:key` (`variant` = `epaper`|`web`)
   — sprite généré (téléchargement, widget iOS ; route publique).
@@ -185,8 +207,14 @@ node scripts/gen-assets.mjs    # régénère les visuels docs/ (build serveur re
   `self-update.sh` survive au redémarrage qu'il déclenche (mise à jour sans sudo).
 - **e-paper** : la boucle tire à **1 s** (suit les animations) mais ne pousse
   sur la dalle **que si l'image a changé** (md5) ; refresh **partiel** au
-  changement, **complet** périodique (anti-ghosting), façon
-  [Bjorn](https://github.com/infinition/Bjorn).
+  changement, **complet** toutes les ~30 min (anti-ghosting), façon
+  [Bjorn](https://github.com/infinition/Bjorn). Erreur SPI → réinit sans
+  planter ; SIGTERM → `epd.sleep()` ; journaux agrégés (bilan horaire, une
+  ligne par panne réseau). `RENDER_API_KEY` si le serveur n'est pas local.
+- **Mise à jour** (`self-update.sh`) : verrou (`CONFIG_DIR/update.lock`) et
+  retour au commit précédent si `npm ci`/build échoue (service non redémarré).
+- **Assets web** pré-compressés au build (`scripts/precompress.mjs`, .br/.gz)
+  et servis par `index.ts` selon `Accept-Encoding` — pas de compression à la volée.
 - **Rendu déterministe** : pour tester un rendu, appeler `rasterizeSvg` /
   `buildHorizontal`/`buildVertical` depuis `server/dist/render.js` avec un
   `tick` figé (cf. `gen-assets.mjs`).
@@ -198,9 +226,9 @@ node scripts/gen-assets.mjs    # régénère les visuels docs/ (build serveur re
 ## Structure
 
 ```
-server/src/  index · poller · render · look · idle · pixel · clawd-grid · clawd · clawd-props · sprites · raster · mascot · poses · auth · credentials · usage · config · routes/api
+server/src/  index · poller · render · look · idle · pixel · clawd-grid · clawd · clawd-props · sprites · raster · mascot · poses · auth · credentials · usage · config · fsutil · routes/api
 server/fonts/  Tiny5 (police pixel embarquée pour resvg, OFL)
-web/src/     App · api · lib/{usage,clawd} · pages/* · components/* (dont ClawdLive, PoseEditor)
-scripts/     epaper_push.py · self-update.sh · gen-assets.mjs · *.service
+web/src/     App · api · lib/{usage,clawd} · pages/* (dont config/*) · components/* (dont ClawdLive, PoseEditor, Modal, ui)
+scripts/     epaper_push.py · self-update.sh · gen-assets.mjs · precompress.mjs · *.service
 Makefile · CLAUDE.md · README.md · ROADMAP.md
 ```

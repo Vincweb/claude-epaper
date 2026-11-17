@@ -66,7 +66,7 @@ function gatherData(): PanelData {
   const five = snap?.fiveHour ?? { utilization: 0, resetsAt: null };
   const seven = snap?.sevenDay ?? { utilization: 0, resetsAt: null };
   return {
-    online: Boolean(st.snapshot) && st.authenticated && !st.lastError,
+    online: st.online,
     hasData: Boolean(snap),
     pose: st.pose,
     five: Math.round(five.utilization),
@@ -288,10 +288,32 @@ export function buildEpaperSvg(opts: RenderOpts = {}): string {
   return layout === 'vertical' ? buildVertical(data, rotate) : buildHorizontal(data, rotate);
 }
 
+/*
+ * Cache des PNG rendus, indexé par le SVG lui-même : la dalle est tirée chaque
+ * seconde (boucle e-paper + aperçu web) mais ne compte qu'une poignée d'images
+ * distinctes sur quelques minutes (point qui clignote, cycle de l'animation).
+ * La construction du SVG est quasi gratuite (~15 µs) ; c'est la rastérisation
+ * (~1 ms sur Mac, ~10-20× sur Pi) qu'on évite. Petit LRU borné.
+ */
+const PNG_CACHE_MAX = 24;
+const pngCache = new Map<string, Buffer>();
+
 /** Rastérise le panneau courant en PNG. `scale` agrandit (aperçu net). */
 export function renderEpaperPng(opts: RenderOpts & { scale?: number } = {}): Buffer {
   const svg = buildEpaperSvg(opts);
   const layout = opts.layout ?? loadConfig().epaperLayout;
   const baseW = layout === 'vertical' ? 122 : 250;
-  return rasterizeSvg(svg, Math.round(baseW * (opts.scale ?? 1)));
+  const width = Math.round(baseW * (opts.scale ?? 1));
+  const key = `${width}|${svg}`;
+  const hit = pngCache.get(key);
+  if (hit) {
+    // LRU : remis en fin de file.
+    pngCache.delete(key);
+    pngCache.set(key, hit);
+    return hit;
+  }
+  const png = rasterizeSvg(svg, width);
+  pngCache.set(key, png);
+  if (pngCache.size > PNG_CACHE_MAX) pngCache.delete(pngCache.keys().next().value as string);
+  return png;
 }

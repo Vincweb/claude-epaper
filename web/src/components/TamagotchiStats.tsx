@@ -38,7 +38,7 @@ export function TamagotchiStats({
       <div className="mb-3 flex items-center justify-between">
         <span className="text-xs font-semibold tracking-[0.2em] text-white/70">CLAWD</span>
         <span className="text-xs text-white/50">
-          Niveau {level} · {ageLabel} <span className="ml-1 text-white/30">ⓘ</span>
+          Niveau {level} · {ageLabel} <span className="ml-1 text-white/55">ⓘ</span>
         </span>
       </div>
       <div className="space-y-2.5">

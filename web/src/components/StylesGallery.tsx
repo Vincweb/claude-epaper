@@ -117,24 +117,25 @@ function PoseCard({
                 setEditing(false);
               }
             }}
-            className="w-full rounded bg-white/10 px-2 py-0.5 text-center text-sm font-semibold outline-none focus:bg-white/15"
+            className="w-full rounded bg-white/10 px-2 py-0.5 text-center text-sm font-semibold focus:bg-white/15"
           />
         ) : (
           <button
             onClick={() => setEditing(true)}
             title="Renommer"
-            className="text-sm font-semibold hover:text-[#e0956f]"
+            aria-label={`Renommer « ${pose.title} »`}
+            className="text-sm font-semibold hover:text-accent-soft"
           >
-            {pose.title} <span className="text-white/30">✎</span>
+            {pose.title} <span aria-hidden className="text-white/55">✎</span>
           </button>
         )}
-        <div className="text-xs text-white/45">{POSE_DESC[pose.key] ?? 'humeur personnalisée'}</div>
+        <div className="text-xs text-white/55">{POSE_DESC[pose.key] ?? 'humeur personnalisée'}</div>
         <div className="mt-1 flex flex-wrap items-center justify-center gap-1">
           <span className="rounded-full bg-white/10 px-2 text-[10px] text-white/50">
             {live ? 'vectoriel animé' : info.animated ? 'GIF animé' : 'PNG'}
           </span>
           {pose.lookCustom && (
-            <span className="rounded-full bg-[#d97757]/25 px-2 text-[10px] text-[#e0956f]">généré</span>
+            <span className="rounded-full bg-accent/25 px-2 text-[10px] text-accent-soft">généré</span>
           )}
         </div>
       </div>
@@ -143,10 +144,10 @@ function PoseCard({
           <button
             onClick={onGenerate}
             disabled={busy}
-            title="Composer le look et générer les sprites animés"
-            className="rounded-lg bg-[#d97757]/80 px-3 py-1 text-xs font-medium text-black hover:bg-[#e0956f] disabled:opacity-50"
+            title="Composer le look (yeux, bouche, accessoires, animation)"
+            className="rounded-lg bg-accent/80 px-3 py-1 text-xs font-medium text-black hover:bg-accent-soft disabled:opacity-50"
           >
-            Générer…
+            Modifier le look
           </button>
         )}
         <a
@@ -170,13 +171,13 @@ function PoseCard({
           <button
             onClick={onRemove}
             disabled={busy}
-            className="rounded-lg bg-red-500/15 px-3 py-1 text-xs text-red-300 hover:bg-red-500/25 disabled:opacity-50"
+            className="rounded-lg bg-bad/15 px-3 py-1 text-xs text-bad-soft hover:bg-bad/25 disabled:opacity-50"
           >
             Supprimer
           </button>
         )}
       </div>
-      {error && <div className="mt-1 text-[10px] text-red-400">{error}</div>}
+      {error && <div className="mt-1 text-[10px] text-bad">{error}</div>}
     </div>
   );
 }
@@ -204,10 +205,10 @@ function AddPoseCard({ onAdded }: { onAdded: () => void }) {
 
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-3 text-center">
-      <div className="text-2xl text-white/30">＋</div>
+      <div className="text-2xl text-white/55">＋</div>
       <div className="mb-2 text-sm font-semibold text-white/70">Nouvelle humeur</div>
-      <div className="text-xs text-white/40">
-        Ajoutée à la rotation, avec une tête tirée de son nom. Change-la ensuite avec Générer…
+      <div className="text-xs text-white/55">
+        Ajoutée à la rotation, avec une tête tirée de son nom. Change-la ensuite avec « Modifier le look ».
       </div>
       <input
         value={name}
@@ -215,16 +216,16 @@ function AddPoseCard({ onAdded }: { onAdded: () => void }) {
         placeholder="Nom de l'humeur"
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && void add()}
-        className="mt-3 w-full rounded-lg bg-white/10 px-2 py-1 text-center text-sm outline-none focus:bg-white/15"
+        className="mt-3 w-full rounded-lg bg-white/10 px-2 py-1 text-center text-sm focus:bg-white/15"
       />
       <button
         onClick={() => void add()}
         disabled={busy || !name.trim()}
-        className="mt-2 rounded-lg bg-[#d97757] px-4 py-1 text-xs font-medium text-black hover:bg-[#e0956f] disabled:opacity-40"
+        className="mt-2 rounded-lg bg-accent px-4 py-1 text-xs font-medium text-black hover:bg-accent-soft disabled:opacity-40"
       >
         Ajouter
       </button>
-      {error && <div className="mt-1 text-[10px] text-red-400">{error}</div>}
+      {error && <div className="mt-1 text-[10px] text-bad">{error}</div>}
     </div>
   );
 }
@@ -256,7 +257,7 @@ export function StylesGallery() {
     <div className="w-full">
       <p className="mb-3 text-center text-sm text-white/50">
         Chaque pose est animée <strong>en continu</strong> : compose son look avec{' '}
-        <strong>Générer…</strong> (yeux, accessoires, animation).
+        <strong>Modifier le look</strong> (yeux, accessoires, animation).
         La dalle lit l'animation à 1 image/seconde ; le web dessine Clawd en direct, en vectoriel
         fluide.
       </p>
@@ -267,17 +268,18 @@ export function StylesGallery() {
             <button
               key={v}
               onClick={() => setVariant(v)}
-              className={`px-4 py-1.5 ${variant === v ? 'bg-[#d97757] text-black' : ''}`}
+              aria-pressed={variant === v}
+              className={`px-4 py-1.5 ${variant === v ? 'bg-accent text-black' : 'hover:bg-white/10'}`}
             >
               {VARIANT_INFO[v].label}
             </button>
           ))}
         </div>
       </div>
-      <p className="mb-5 text-center text-xs text-white/40">{VARIANT_INFO[variant].hint}</p>
+      <p className="mb-5 text-center text-xs text-white/55">{VARIANT_INFO[variant].hint}</p>
 
       <h3 className="mb-1 text-sm font-semibold text-white/80">En rotation</h3>
-      <p className="mb-3 text-xs text-white/40">
+      <p className="mb-3 text-xs text-white/55">
         Tes humeurs à toi, choisies au fil de la journée (et via 🎲). Ajoute-les ici, renomme-les,
         génère leur look ou supprime-les. {rotation.length === 0 && 'Aucune pour l’instant — commence par en ajouter une.'}
       </p>
@@ -296,7 +298,7 @@ export function StylesGallery() {
       </div>
 
       <h3 className="mb-1 mt-8 text-sm font-semibold text-white/80">Spéciales</h3>
-      <p className="mb-3 text-xs text-white/40">
+      <p className="mb-3 text-xs text-white/55">
         Poses de base, déclenchées par un état : <strong>Tranquille</strong> (par défaut / repli),
         niveau des jauges (sous pression → stressé → cramé), nuit/inactivité (dodo) ou anniversaire.
         Renommables, mais pas supprimables.

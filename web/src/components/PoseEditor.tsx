@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { posePreviewUrl, savePoseLook, type Look, type LookPart, type LookParts, type PoseInfo } from '../api';
 import { ClawdLive } from './ClawdLive';
+import { Modal } from './Modal';
 
 const PART_LABELS: Record<LookPart, string> = {
   eyes: 'Yeux',
@@ -48,12 +49,6 @@ export function PoseEditor({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   const save = async () => {
     setBusy(true);
     setError('');
@@ -69,17 +64,7 @@ export function PoseEditor({
   };
 
   return (
-    <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div
-        className="max-h-full w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-[#1a1613] p-5 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">Générer « {pose.title} »</h2>
-          <button onClick={onClose} className="text-white/50 hover:text-white">
-            ✕
-          </button>
-        </div>
+    <Modal title={`Modifier le look de « ${pose.title} »`} onClose={onClose} className="max-w-2xl" z="z-20">
 
         <div className="mb-4 flex flex-wrap items-end justify-center gap-6">
           <figure className="flex flex-col items-center gap-1">
@@ -91,27 +76,28 @@ export function PoseEditor({
                 style={{ imageRendering: 'pixelated' }}
               />
             </div>
-            <figcaption className="text-[10px] text-white/40">E-paper · 1 image/s</figcaption>
+            <figcaption className="text-[11px] text-white/55">E-paper · 1 image/s</figcaption>
           </figure>
           <figure className="flex flex-col items-center gap-1">
             <div className="rounded-xl bg-white/[0.04] p-2">
               <ClawdLive look={look} size={236} title="Aperçu web" gaze />
             </div>
-            <figcaption className="text-[10px] text-white/40">Web · en direct</figcaption>
+            <figcaption className="text-[11px] text-white/55">Web · en direct</figcaption>
           </figure>
         </div>
 
         <div className="space-y-3">
           {PART_ORDER.map((part) => (
             <div key={part}>
-              <div className="mb-1 text-xs font-medium text-white/60">{PART_LABELS[part]}</div>
+              <div className="mb-1 text-xs font-medium text-white/70">{PART_LABELS[part]}</div>
               <div className="flex flex-wrap gap-1.5">
                 {Object.entries(parts[part]).map(([value, label]) => (
                   <button
                     key={value}
                     onClick={() => setLook((l) => ({ ...l, [part]: value }))}
+                    aria-pressed={look[part] === value}
                     className={`rounded-full px-3 py-1 text-xs ${
-                      look[part] === value ? 'bg-[#d97757] text-black' : 'bg-white/10 hover:bg-white/20'
+                      look[part] === value ? 'bg-accent text-black' : 'bg-white/10 hover:bg-white/20'
                     }`}
                   >
                     {label}
@@ -122,7 +108,7 @@ export function PoseEditor({
           ))}
         </div>
 
-        {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+        {error && <p className="mt-2 text-xs text-bad">{error}</p>}
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
           <button
@@ -138,13 +124,12 @@ export function PoseEditor({
             <button
               onClick={() => void save()}
               disabled={busy}
-              className="rounded-lg bg-[#d97757] px-4 py-1.5 text-xs font-medium text-black hover:bg-[#e0956f] disabled:opacity-40"
+              className="rounded-lg bg-accent px-4 py-1.5 text-xs font-medium text-black hover:bg-accent-soft disabled:opacity-40"
             >
-              {busy ? 'Génération…' : 'Générer'}
+              {busy ? 'Enregistrement…' : 'Enregistrer le look'}
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

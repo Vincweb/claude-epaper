@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { writeJsonAtomic } from './fsutil.js';
 
 export interface AppConfig {
   /** Intervalle de polling de l'endpoint usage (ms). */
@@ -55,6 +56,51 @@ function normalizeStoredLayout(v: unknown): AppConfig['epaperLayout'] {
   return 'horizontal';
 }
 
+/** Bornes de l'intervalle de polling : en dessous de 30 s on martèle l'API (429). */
+export const POLL_MIN_MS = 30_000;
+export const POLL_MAX_MS = 3_600_000;
+
+const clampInt = (v: unknown, min: number, max: number): number | undefined => {
+  const n = typeof v === 'string' && v.trim() === '' ? NaN : Number(v);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : undefined;
+};
+
+/**
+ * Valide un patch de config venu de l'API : champs inconnus ou invalides
+ * ignorés, nombres bornés, seuils remis dans l'ordre alerte ≤ stressé ≤ panique.
+ * `bornAt` et `usageXp` sont gérés par le serveur : jamais acceptés ici (sinon
+ * un formulaire ouvert depuis longtemps écraserait l'XP gagnée entre-temps).
+ */
+export function sanitizeConfigPatch(raw: unknown): Partial<AppConfig> {
+  if (!raw || typeof raw !== 'object') return {};
+  const r = raw as Record<string, unknown>;
+  const out: Partial<AppConfig> = {};
+  const poll = clampInt(r.pollIntervalMs, POLL_MIN_MS, POLL_MAX_MS);
+  if (poll !== undefined) out.pollIntervalMs = poll;
+  if (typeof r.credentialsPath === 'string' && r.credentialsPath.trim()) out.credentialsPath = r.credentialsPath.trim();
+  if (r.thresholds && typeof r.thresholds === 'object') {
+    const t = r.thresholds as Record<string, unknown>;
+    const cur = loadConfig().thresholds;
+    const vals = [
+      clampInt(t.alert, 1, 100) ?? cur.alert,
+      clampInt(t.worried, 1, 100) ?? cur.worried,
+      clampInt(t.panic, 1, 100) ?? cur.panic,
+    ].sort((a, b) => a - b);
+    out.thresholds = { alert: vals[0], worried: vals[1], panic: vals[2] };
+  }
+  if (r.epaperLayout !== undefined) out.epaperLayout = normalizeStoredLayout(r.epaperLayout);
+  if (r.epaperRotate !== undefined) out.epaperRotate = Number(r.epaperRotate) === 180 ? 180 : 0;
+  if (typeof r.birthday === 'string') {
+    const b = r.birthday.trim();
+    if (b === '' || /^(\d{4}-)?\d{2}-\d{2}$/.test(b)) out.birthday = b;
+  }
+  const inactivity = clampInt(r.inactivityMinutes, 1, 1440);
+  if (inactivity !== undefined) out.inactivityMinutes = inactivity;
+  const rotate = clampInt(r.rotateMinutes, 1, 1440);
+  if (rotate !== undefined) out.rotateMinutes = rotate;
+  return out;
+}
+
 export function loadConfig(): AppConfig {
   ensureConfigDir();
   try {
@@ -62,21 +108,33 @@ export function loadConfig(): AppConfig {
     return {
       ...DEFAULTS,
       ...raw,
+      // Garde-fou : une valeur aberrante dans le fichier ne doit pas faire boucler le poller.
+      pollIntervalMs: clampInt(raw.pollIntervalMs, POLL_MIN_MS, POLL_MAX_MS) ?? DEFAULTS.pollIntervalMs,
       epaperLayout: normalizeStoredLayout(raw.epaperLayout),
       thresholds: { ...DEFAULTS.thresholds, ...(raw.thresholds || {}) },
     };
-  } catch {
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
+      // Ne pas écraser silencieusement un fichier illisible (bornAt, XP…) : on le met de côté.
+      const aside = `${CONFIG_FILE}.illisible-${Date.now()}`;
+      try {
+        fs.renameSync(CONFIG_FILE, aside);
+        console.error(`[config] config.json illisible, mis de côté dans ${aside}`);
+      } catch {
+        /* ignore */
+      }
+    }
     return { ...DEFAULTS };
   }
 }
 
 export function saveConfig(patch: Partial<AppConfig>): AppConfig {
+  const current = loadConfig();
   const merged: AppConfig = {
-    ...loadConfig(),
+    ...current,
     ...patch,
-    thresholds: { ...loadConfig().thresholds, ...(patch.thresholds || {}) },
+    thresholds: { ...current.thresholds, ...(patch.thresholds || {}) },
   };
-  ensureConfigDir();
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(merged, null, 2));
+  writeJsonAtomic(CONFIG_FILE, merged);
   return merged;
 }

@@ -11,6 +11,7 @@ import {
   type AuthenticationResponseJSON,
 } from '@simplewebauthn/server';
 import { getConfigDir, ensureConfigDir } from './config.js';
+import { writeJsonAtomic } from './fsutil.js';
 
 /**
  * Auth WebAuthn (passkey) pour l'utilisateur unique du dashboard.
@@ -44,21 +45,40 @@ const authPath = () => path.join(getConfigDir(), 'auth.json');
 // Challenge WebAuthn en cours (un seul utilisateur, un seul flux à la fois).
 let currentChallenge: string | null = null;
 
-function read(): AuthData | null {
+/**
+ * Lit auth.json. `corrupt` = le fichier existe mais est illisible : on ne doit
+ * surtout PAS le traiter comme « pas encore configuré » (sinon n'importe qui
+ * pourrait enregistrer sa passkey) → l'accès reste verrouillé.
+ */
+function readState(): { data: AuthData | null; corrupt: boolean } {
+  let text: string;
   try {
-    return JSON.parse(fs.readFileSync(authPath(), 'utf8')) as AuthData;
-  } catch {
-    return null;
+    text = fs.readFileSync(authPath(), 'utf8');
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return { data: null, corrupt: false };
+    console.error(`[auth] auth.json illisible (${(e as Error).message}) — accès verrouillé`);
+    return { data: null, corrupt: true };
   }
+  try {
+    const d = JSON.parse(text) as AuthData;
+    if (!Array.isArray(d?.credentials) || typeof d.sessionSecret !== 'string') throw new Error('format');
+    return { data: d, corrupt: false };
+  } catch {
+    console.error('[auth] auth.json corrompu — accès verrouillé (supprimer le fichier réinitialise l’auth)');
+    return { data: null, corrupt: true };
+  }
+}
+function read(): AuthData | null {
+  return readState().data;
 }
 function write(d: AuthData): void {
   ensureConfigDir();
-  fs.writeFileSync(authPath(), JSON.stringify(d, null, 2), { mode: 0o600 });
+  writeJsonAtomic(authPath(), d, 0o600);
 }
 
 export function isConfigured(): boolean {
-  const d = read();
-  return Boolean(d && d.credentials.length > 0);
+  const { data, corrupt } = readState();
+  return corrupt || Boolean(data && data.credentials.length > 0);
 }
 export function authFilePath(): string {
   return authPath();
@@ -116,6 +136,14 @@ const normCode = (c: string) => c.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
 function hashRecovery(code: string, salt: string): string {
   return crypto.scryptSync(normCode(code), Buffer.from(salt, 'hex'), 32).toString('hex');
+}
+
+/** Version asynchrone (vérification) : scrypt coûte ~200 ms sur le Pi, il ne
+ * doit pas bloquer la boucle d'événements (rendu de la dalle, SSE). */
+function hashRecoveryAsync(code: string, salt: string): Promise<Buffer> {
+  return new Promise((resolve, reject) =>
+    crypto.scrypt(normCode(code), Buffer.from(salt, 'hex'), 32, (err, key) => (err ? reject(err) : resolve(key))),
+  );
 }
 
 function genRecoveryCode(): string {
@@ -213,6 +241,8 @@ export async function verifyRegistration(
   }
 
   write({
+    // Garde les champs existants (clé d'API du widget iOS notamment).
+    ...existing,
     credentials: [
       {
         id: cred.id,
@@ -275,25 +305,55 @@ export async function verifyAuthentication(
   return true;
 }
 
-export function verifyRecovery(code: string): boolean {
+// Limiteur global (utilisateur unique) : 5 essais de code par minute. Global
+// plutôt que par IP : derrière `trust proxy`, l'IP client est falsifiable.
+const RECOVER_WINDOW_MS = 60_000;
+const RECOVER_MAX = 5;
+let recoverAttempts: number[] = [];
+
+/** Vrai si un essai de code de récupération est autorisé maintenant (et le compte). */
+export function allowRecoveryAttempt(now = Date.now()): boolean {
+  recoverAttempts = recoverAttempts.filter((t) => now - t < RECOVER_WINDOW_MS);
+  if (recoverAttempts.length >= RECOVER_MAX) return false;
+  recoverAttempts.push(now);
+  return true;
+}
+
+export async function verifyRecovery(code: string): Promise<boolean> {
   const d = read();
   if (!d) return false;
-  const h = hashRecovery(code, d.recoverySalt);
-  const a = Buffer.from(h, 'hex');
+  const a = await hashRecoveryAsync(code, d.recoverySalt);
   const b = Buffer.from(d.recoveryHash, 'hex');
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
 /* -------------------------------- middleware ------------------------------- */
 
-function isLoopback(req: Request): boolean {
+/**
+ * Requête émise par la machine elle-même (boucle e-paper). Une requête relayée
+ * par un reverse proxy installé sur le Pi arrive AUSSI de 127.0.0.1 : la
+ * présence d'un en-tête de proxy l'exclut, sinon Internet passerait pour local.
+ */
+function isDirectLoopback(req: Request): boolean {
   const ip = req.socket.remoteAddress ?? '';
-  return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+  const loopback = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+  const proxied = Boolean(
+    req.get('x-forwarded-for') || req.get('x-forwarded-host') || req.get('x-real-ip') || req.get('forwarded'),
+  );
+  return loopback && !proxied;
 }
 
-/** Protège une route : boucle locale, clé d'API (Bearer) ou session valide. */
+/**
+ * Comme `requireAuth`, mais laisse passer la boucle locale directe. Réservé au
+ * rendu de la dalle (`GET /render.png`) : aucune autre route n'est exemptée.
+ */
+export function requireAuthOrLocal(req: Request, res: Response, next: NextFunction): void {
+  if (isDirectLoopback(req)) return next();
+  requireAuth(req, res, next);
+}
+
+/** Protège une route : clé d'API (Bearer) ou session valide. */
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
-  if (isLoopback(req)) return next();
   const token = bearerToken(req);
   if (token && verifyApiToken(token)) return next(); // app iOS / widget
   if (!isConfigured()) {

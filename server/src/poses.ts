@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getConfigDir } from './config.js';
+import { writeJsonAtomic } from './fsutil.js';
 import { ALL_POSES, SPECIAL_POSES, lookFromName, sanitizeLook, type Look, type Pose } from './mascot.js';
 
 /**
@@ -48,8 +49,7 @@ function load(): UserPoses {
 }
 
 function save(u: UserPoses): void {
-  fs.mkdirSync(getConfigDir(), { recursive: true });
-  fs.writeFileSync(file(), JSON.stringify(u, null, 2));
+  writeJsonAtomic(file(), u);
 }
 
 function customToPose(c: CustomPose, looks: UserPoses['looks']): Pose {

@@ -1,15 +1,34 @@
 @import "tailwindcss";
 
+/* Palette de l'app : une seule source de vérité (classes bg-accent, text-ok…). */
+@theme {
+  --color-accent: #d97757; /* terracotta de Clawd */
+  --color-accent-soft: #e0956f;
+  --color-ok: #7bbf6a;
+  --color-warn: #e0a458;
+  --color-warn-soft: #e0c08a;
+  --color-bad: #e0533c;
+  --color-bad-soft: #f08a78;
+  --color-panel: #1a1613; /* fond des fenêtres et menus */
+  --color-ink: #0d0b09; /* fond de page */
+}
+
 :root {
   color-scheme: dark;
 }
 
 body {
   margin: 0;
-  background: radial-gradient(circle at 50% 0%, #1e1b17 0%, #0d0b09 60%);
+  background: radial-gradient(circle at 50% 0%, #1e1b17 0%, var(--color-ink) 60%);
   min-height: 100vh;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color: #f5f0e8;
+}
+
+/* Focus clavier toujours visible (les champs n'ont plus d'outline-none muet). */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 /* Discrète réaction quand une limite bouge (seule animation conservée). */
@@ -27,3 +46,22 @@ body {
   95% { opacity: 0.1; }
 }
 .blink-10 { animation: blink-10 10s ease-in-out infinite; }
+
+/* Réglage système « réduire les animations » : on coupe tout ce qui bouge. */
+@media (prefers-reduced-motion: reduce) {
+  .cc-pop,
+  .blink-10 {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* Écrans à encoche (PWA plein écran) : marges de sécurité. */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}

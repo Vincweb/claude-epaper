@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CLAWD_VIEWBOX, REST, clawdSvg, idleFrame, sanitizeLook, type IdleFrame } from '../lib/clawd';
 
 /*
@@ -25,8 +25,55 @@ function subscribe(draw: Draw): () => void {
   return () => void listeners.delete(draw);
 }
 
-const prefersReducedMotion = () =>
-  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+const REDUCED = '(prefers-reduced-motion: reduce)';
+
+/** Suit le réglage système « réduire les animations » (changeable à chaud). */
+function useReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.(REDUCED).matches);
+  useEffect(() => {
+    const mq = window.matchMedia?.(REDUCED);
+    if (!mq) return;
+    const on = () => setReduced(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return reduced;
+}
+
+/** Le Clawd est-il à l'écran ? (la galerie en affiche une douzaine, souvent hors champ) */
+function useOnScreen(ref: React.RefObject<Element | null>): boolean {
+  const [on, setOn] = useState(true);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(([e]) => setOn(e.isIntersecting), { rootMargin: '100px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [ref]);
+  return on;
+}
+
+/*
+ * Arrondi de l'image côté WEB uniquement (la dalle et ses sprites ne passent
+ * pas par ici) : 0,25 unité ≈ ½ pixel écran à 240 px. Sans lui, le SVG change
+ * à presque chaque image (≈ 430 réécritures innerHTML sur 600 en « idle ») ;
+ * avec, ≈ 50 — même rendu à l'œil, beaucoup moins de travail pour le navigateur.
+ */
+const q = (v: number, step: number) => Math.round(v / step) * step;
+function quantize(f: IdleFrame): IdleFrame {
+  return {
+    ...f,
+    bob: q(f.bob, 0.25),
+    squash: q(f.squash, 0.25),
+    dx: q(f.dx, 0.25),
+    lookX: q(f.lookX, 0.25),
+    lookY: q(f.lookY, 0.25),
+    armL: q(f.armL, 0.25),
+    armR: q(f.armR, 0.25),
+    blink: q(f.blink, 0.1),
+    t: q(f.t, 1 / 30), // accessoires animés (Zzz, notes…) : 30 img/s suffisent
+  };
+}
 
 /** Portée du regard : au-delà (px écran), Clawd ne suit plus le pointeur. */
 const GAZE_RADIUS = 420;
@@ -51,6 +98,8 @@ export function ClawdLive({
   const ref = useRef<SVGSVGElement>(null);
   const clean = sanitizeLook(look);
   const sig = JSON.stringify(clean);
+  const reduced = useReducedMotion();
+  const onScreen = useOnScreen(ref);
 
   useEffect(() => {
     const el = ref.current;
@@ -64,7 +113,8 @@ export function ClawdLive({
         last = markup;
       }
     };
-    if (prefersReducedMotion()) {
+    if (reduced || !onScreen) {
+      // Immobile (réglage système) ou hors écran : une image fixe, pas de boucle.
       paint(REST);
       return;
     }
@@ -95,14 +145,14 @@ export function ClawdLive({
         f.lookX += (gx - f.lookX) * weight;
         f.lookY += (gy - f.lookY) * weight;
       }
-      paint(f);
+      paint(quantize(f));
     });
     return () => {
       unsubscribe();
       window.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerleave', onLeave);
     };
-  }, [sig, gaze]);
+  }, [sig, gaze, reduced, onScreen]);
 
   return (
     <svg

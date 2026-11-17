@@ -1,29 +1,47 @@
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser';
 import type { AppConfig, ConnectionInfo, PollerState } from './lib/usage';
 
-export async function getConfig(): Promise<AppConfig> {
-  const r = await fetch('/api/config');
-  return r.json();
+/** Erreur HTTP de notre API (statut + message du serveur). */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
 }
 
-export async function putConfig(patch: Partial<AppConfig>): Promise<AppConfig> {
-  const r = await fetch('/api/config', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  });
-  return r.json();
+/** fetch + JSON qui LÈVE si la réponse n'est pas 2xx (au lieu de renvoyer `{error}`). */
+export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const r = await fetch(url, init);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new ApiError(j?.error ?? `Échec (${r.status})`, r.status);
+  return j as T;
 }
 
-export async function importCredentials(): Promise<{ imported: boolean }> {
-  const r = await fetch('/api/auth/import', { method: 'POST' });
-  return r.json();
+const jsonBody = (method: string, body: unknown): RequestInit => ({
+  method,
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+});
+
+export function getConfig(): Promise<AppConfig> {
+  return fetchJson('/api/config');
+}
+
+/** Enregistre UNIQUEMENT les champs fournis (le serveur valide et borne). */
+export function putConfig(patch: Partial<AppConfig>): Promise<AppConfig> {
+  return fetchJson('/api/config', jsonBody('PUT', patch));
+}
+
+export function importCredentials(): Promise<{ imported: boolean }> {
+  return fetchJson('/api/auth/import', { method: 'POST' });
 }
 
 /* ------------------- connexion à Claude (OAuth depuis le dashboard) ------------------- */
 
-export async function getClaudeConnection(): Promise<ConnectionInfo> {
-  return (await fetch('/api/claude/connection')).json();
+export function getClaudeConnection(): Promise<ConnectionInfo> {
+  return fetchJson('/api/claude/connection');
 }
 
 /** Étape 1 : URL d'autorisation Claude à ouvrir (valable 10 min). */
@@ -54,8 +72,7 @@ export async function finishClaudeLogin(code: string): Promise<LoginResult> {
 
 /** Se déconnecter : oublie les identifiants gérés. */
 export async function logoutClaude(): Promise<ConnectionInfo> {
-  const r = await fetch('/api/claude/login', { method: 'DELETE' });
-  return (await r.json()).connection;
+  return (await fetchJson<{ connection: ConnectionInfo }>('/api/claude/login', { method: 'DELETE' })).connection;
 }
 
 export async function shufflePose(): Promise<void> {
@@ -151,17 +168,43 @@ export function poseAssetUrl(variant: SpriteVariant, key: string, bump: number |
   return `/api/poses/${variant}/${key}?v=${encodeURIComponent(bump)}`;
 }
 
-/** Abonnement SSE à l'état du poller. Renvoie une fonction de désinscription. */
-export function subscribeState(onState: (s: PollerState) => void): () => void {
-  const es = new EventSource('/api/usage/stream');
-  es.onmessage = (ev) => {
-    try {
-      onState(JSON.parse(ev.data) as PollerState);
-    } catch {
-      /* ignore */
-    }
+/**
+ * Abonnement SSE à l'état du poller. `onLink(false)` dès que le flux est coupé
+ * (serveur redémarré, réseau, session expirée) : l'UI ne doit pas afficher des
+ * données figées comme si elles étaient fraîches. Le navigateur reconnecte seul
+ * les coupures réseau ; s'il abandonne (ex. 401), on recrée le flux nous-mêmes.
+ * Renvoie une fonction de désinscription.
+ */
+export function subscribeState(onState: (s: PollerState) => void, onLink?: (up: boolean) => void): () => void {
+  let es: EventSource | null = null;
+  let retry: ReturnType<typeof setTimeout> | null = null;
+  let closed = false;
+
+  const open = () => {
+    es = new EventSource('/api/usage/stream');
+    es.onopen = () => onLink?.(true);
+    es.onmessage = (ev) => {
+      try {
+        onState(JSON.parse(ev.data) as PollerState);
+        onLink?.(true);
+      } catch {
+        /* ignore */
+      }
+    };
+    es.onerror = () => {
+      onLink?.(false);
+      if (es?.readyState === EventSource.CLOSED && !closed) {
+        es.close();
+        retry = setTimeout(open, 5000);
+      }
+    };
   };
-  return () => es.close();
+  open();
+  return () => {
+    closed = true;
+    if (retry) clearTimeout(retry);
+    es?.close();
+  };
 }
 
 /* ---------------------------------- auth ---------------------------------- */
@@ -171,9 +214,8 @@ export interface AuthState {
   authenticated: boolean;
 }
 
-export async function getAuthState(): Promise<AuthState> {
-  const r = await fetch('/api/auth/state');
-  return r.json();
+export function getAuthState(): Promise<AuthState> {
+  return fetchJson('/api/auth/state');
 }
 
 /** Enregistre une passkey. Renvoie le code de récup + son QR (1re config). */
@@ -210,6 +252,7 @@ export async function recoverWithCode(code: string): Promise<void> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ code }),
   });
+  if (r.status === 429) throw new Error('too-many-attempts');
   if (!r.ok) throw new Error('invalid-code');
 }
 
@@ -230,8 +273,8 @@ export interface ApiToken {
   qr?: string;
 }
 
-export async function getApiToken(): Promise<ApiToken> {
-  return (await fetch('/api/auth/token')).json();
+export function getApiToken(): Promise<ApiToken> {
+  return fetchJson('/api/auth/token');
 }
 
 /** (Re)génère la clé d'API pour l'app iOS / le widget. */
@@ -250,8 +293,8 @@ export interface VersionInfo {
   commit: string;
   date: string;
 }
-export async function getVersion(): Promise<VersionInfo> {
-  return (await fetch('/api/system/version', { cache: 'no-store' })).json();
+export function getVersion(): Promise<VersionInfo> {
+  return fetchJson('/api/system/version', { cache: 'no-store' });
 }
 
 export interface UpdateCheck {
@@ -263,8 +306,8 @@ export interface UpdateCheck {
   subject?: string;
   error?: string;
 }
-export async function checkUpdate(): Promise<UpdateCheck> {
-  return (await fetch('/api/system/update-check')).json();
+export function checkUpdate(): Promise<UpdateCheck> {
+  return fetchJson('/api/system/update-check');
 }
 
 /** Déclenche la mise à jour (git pull + build + redémarrage) côté serveur. */

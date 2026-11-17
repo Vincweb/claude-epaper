@@ -1,5 +1,6 @@
 import express from 'express';
 import cookieParser from 'cookie-parser';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { poller } from './poller.js';
@@ -26,6 +27,29 @@ app.use('/api', apiRouter);
 // recharge un vieil index.html pointant vers l'ancien JS (UI inchangée alors
 // que la version « monte »).
 const webDist = path.resolve(__dirname, '../../web/dist');
+
+// Assets pré-compressés au build (scripts/precompress.mjs) : brotli/gzip servis
+// tels quels si le navigateur les accepte. 300 Ko de JS → ~85 Ko sur le réseau.
+const ENCODINGS = [
+  ['br', '.br'],
+  ['gzip', '.gz'],
+] as const;
+app.use('/assets', (req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  const file = path.join(webDist, 'assets', path.normalize(req.path).replace(/^([/\\])+/, ''));
+  if (!file.startsWith(path.join(webDist, 'assets') + path.sep)) return next();
+  const accepted = req.get('accept-encoding') ?? '';
+  for (const [enc, ext] of ENCODINGS) {
+    if (!accepted.includes(enc) || !fs.existsSync(file + ext)) continue;
+    res.setHeader('Content-Encoding', enc);
+    res.setHeader('Vary', 'Accept-Encoding');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.type(path.extname(file));
+    return res.sendFile(file + ext);
+  }
+  next();
+});
+
 app.use(
   express.static(webDist, {
     setHeaders(res, filePath) {
