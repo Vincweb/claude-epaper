@@ -192,6 +192,7 @@ make dev         # hot-reload (dev)
 npm run dev      # web (Vite :5321) + API (:8787)
 npm run build    # web + serveur
 node scripts/gen-assets.mjs    # régénère les visuels docs/ (build serveur requis)
+node scripts/gen-icons.mjs     # régénère les icônes PWA/iPhone web/public/ (build serveur requis)
 ```
 
 ## Conventions & pièges
@@ -229,6 +230,6 @@ node scripts/gen-assets.mjs    # régénère les visuels docs/ (build serveur re
 server/src/  index · poller · render · look · idle · pixel · clawd-grid · clawd · clawd-props · sprites · raster · mascot · poses · auth · credentials · usage · config · fsutil · routes/api
 server/fonts/  Tiny5 (police pixel embarquée pour resvg, OFL)
 web/src/     App · api · lib/{usage,clawd} · pages/* (dont config/*) · components/* (dont ClawdLive, PoseEditor, Modal, ui)
-scripts/     epaper_push.py · self-update.sh · gen-assets.mjs · precompress.mjs · *.service
+scripts/     epaper_push.py · self-update.sh · gen-assets.mjs · gen-icons.mjs · precompress.mjs · *.service
 Makefile · CLAUDE.md · README.md · ROADMAP.md
 ```
