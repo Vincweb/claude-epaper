@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { checkUpdate, getVersion, registerPasskey, systemUpdate, type UpdateCheck, type VersionInfo } from '../../api';
+import { checkUpdate, getUpdateStatus, getVersion, registerPasskey, systemUpdate, type UpdateCheck, type VersionInfo } from '../../api';
 import { Modal } from '../../components/Modal';
 import { btnCls, btnPrimaryCls, Section } from '../../components/ui';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-/** Au-delà, on arrête d'attendre et on laisse la main (build raté, service absent…). */
-const UPDATE_TIMEOUT_MS = 8 * 60_000;
+/** Au-delà, on arrête d'attendre (un Pi Zero peut mettre ~10 min à construire). */
+const UPDATE_TIMEOUT_MS = 20 * 60_000;
 
 /** Passkey du dashboard. */
 export function SecuritySection() {
@@ -35,7 +35,10 @@ export function SecuritySection() {
   );
 }
 
-type Updating = { phase: 'restart' | 'waiting' } | { phase: 'failed'; error: string };
+type Updating =
+  | { phase: 'running'; message: string }
+  | { phase: 'restarting' }
+  | { phase: 'failed'; error: string; log?: string };
 
 /** Version, vérification et lancement de la mise à jour (git pull + build + redémarrage). */
 export function SystemSection() {
@@ -62,38 +65,52 @@ export function SystemSection() {
     window.location.replace(url.toString());
   };
 
+  /**
+   * Suit la mise à jour jusqu'au bout. La page ne recharge QUE lorsque le
+   * serveur redémarré annonce un autre commit (version du processus, pas du
+   * disque) ; un échec affiche la raison et la fin du journal.
+   */
   const doUpdate = async () => {
     setConfirm(false);
     const before = version?.commit ?? null;
-    setUpdating({ phase: 'restart' });
+    setUpdating({ phase: 'running', message: 'Démarrage…' });
     try {
       await systemUpdate();
-    } catch {
-      setUpdating({ phase: 'failed', error: 'Impossible de lancer la mise à jour (l’app est-elle installée en service ?)' });
+    } catch (e) {
+      setUpdating({
+        phase: 'failed',
+        error: e instanceof Error && e.message ? e.message : 'Impossible de lancer la mise à jour (l’app est-elle installée en service ?)',
+      });
       return;
     }
     const deadline = Date.now() + UPDATE_TIMEOUT_MS;
-    let sawDown = false; // le serveur a-t-il redémarré ?
-    await sleep(15_000);
-    setUpdating({ phase: 'waiting' });
     while (Date.now() < deadline) {
-      try {
-        const v = await getVersion();
-        // Nouveau commit en ligne, OU serveur revenu après une coupure (même commit :
-        // dépôt déjà à jour) → on recharge la page.
-        if (!before || (v.commit && v.commit !== before) || sawDown) {
-          reloadFresh(v.commit || String(v.version));
-          return;
-        }
-      } catch {
-        sawDown = true; // serveur indisponible = redémarrage en cours
-      }
       await sleep(3000);
+      let st;
+      try {
+        st = await getUpdateStatus();
+      } catch {
+        setUpdating({ phase: 'restarting' }); // serveur injoignable = redémarrage en cours
+        continue;
+      }
+      if (before && st.running.commit && st.running.commit !== before) {
+        reloadFresh(st.running.commit);
+        return;
+      }
+      if (st.state === 'failed') {
+        setUpdating({ phase: 'failed', error: st.message || 'La mise à jour a échoué.', log: st.log });
+        return;
+      }
+      if (st.state === 'done') {
+        // Redémarré sans changement de commit : rien de nouveau à charger.
+        reloadFresh(st.running.commit || st.running.version);
+        return;
+      }
+      setUpdating(st.state === 'restarting' ? { phase: 'restarting' } : { phase: 'running', message: st.message || 'En cours…' });
     }
     setUpdating({
       phase: 'failed',
-      error:
-        'La nouvelle version n’est pas apparue après 8 minutes. La mise à jour a peut-être échoué (build, réseau) : l’ancienne version reste en service. Consulte les journaux du Pi (journalctl).',
+      error: 'La nouvelle version n’est pas apparue après 20 minutes. L’ancienne version reste en service ; consulte ~/.claude-epaper/update.log sur le Pi.',
     });
   };
 
@@ -162,7 +179,15 @@ export function SystemSection() {
           {updating.phase === 'failed' ? (
             <>
               <div className="text-4xl">⚠️</div>
-              <p className="max-w-xs text-sm text-white/75">{updating.error}</p>
+              <p className="max-w-sm text-sm text-white/80">{updating.error}</p>
+              {updating.log && (
+                <details className="w-full max-w-lg text-left">
+                  <summary className="cursor-pointer text-xs text-white/60">Voir le journal</summary>
+                  <pre className="mt-2 max-h-64 overflow-auto rounded-xl bg-black/40 p-3 text-[11px] leading-snug whitespace-pre-wrap text-white/70">
+                    {updating.log}
+                  </pre>
+                </details>
+              )}
               <div className="flex gap-3">
                 <button onClick={() => setUpdating(null)} className={btnCls}>
                   Fermer
@@ -178,10 +203,11 @@ export function SystemSection() {
               <div className="space-y-1">
                 <p className="text-lg font-semibold">Mise à jour en cours…</p>
                 <p className="max-w-xs text-sm text-white/60">
-                  {updating.phase === 'restart'
-                    ? 'Récupération et construction de la nouvelle version. La page se rechargera automatiquement.'
-                    : 'On attend le retour de la nouvelle version. La page se rechargera dès qu’elle est prête.'}
+                  {updating.phase === 'restarting'
+                    ? 'Redémarrage du serveur. La page se rechargera dès que la nouvelle version répond.'
+                    : updating.message}
                 </p>
+                <p className="text-xs text-white/45">Ne ferme pas cette page ; sur un Pi Zero, comptez jusqu’à 10 minutes.</p>
               </div>
               <button onClick={() => setUpdating(null)} className="text-xs text-white/55 underline">
                 Masquer (la mise à jour continue)

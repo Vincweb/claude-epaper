@@ -288,10 +288,25 @@ export async function revokeApiToken(): Promise<void> {
   await fetch('/api/auth/token', { method: 'DELETE' });
 }
 
+/** Version du code EN SERVICE (figée au démarrage du serveur). */
 export interface VersionInfo {
   version: string;
   commit: string;
   date: string;
+  startedAt?: string;
+}
+
+export type UpdateState = 'idle' | 'running' | 'failed' | 'restarting' | 'done';
+export interface UpdateStatus {
+  state: UpdateState;
+  message: string;
+  updatedAt: string | null;
+  /** Fin du journal de mise à jour (rempli en cas d'échec). */
+  log: string;
+  running: VersionInfo;
+}
+export function getUpdateStatus(): Promise<UpdateStatus> {
+  return fetchJson('/api/system/update-status', { cache: 'no-store' });
 }
 export function getVersion(): Promise<VersionInfo> {
   return fetchJson('/api/system/version', { cache: 'no-store' });

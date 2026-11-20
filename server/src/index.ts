@@ -6,9 +6,12 @@ import { fileURLToPath } from 'node:url';
 import { poller } from './poller.js';
 import { apiRouter } from './routes/api.js';
 import { loadConfig, saveConfig } from './config.js';
+import { markUpdateFinishedOnBoot } from './system.js';
 
 // Date de naissance de Clawd : fixée une seule fois, au tout premier lancement.
 if (!loadConfig().bornAt) saveConfig({ bornAt: new Date().toISOString() });
+// Redémarrage provoqué par une mise à jour : elle est terminée.
+markUpdateFinishedOnBoot();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 8787;

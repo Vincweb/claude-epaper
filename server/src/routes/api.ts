@@ -6,7 +6,8 @@ import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import QRCode from 'qrcode';
 import { poller } from '../poller.js';
-import { loadConfig, sanitizeConfigPatch, saveConfig } from '../config.js';
+import { getConfigDir, loadConfig, sanitizeConfigPatch, saveConfig } from '../config.js';
+import { readUpdateStatus, RUNNING, updateInProgress, writeUpdateStatus } from '../system.js';
 import {
   connectionInfo,
   deleteStore,
@@ -456,31 +457,26 @@ apiRouter.delete('/claude/login', requireAuth, async (_req, res) => {
   res.json({ ok: true, connection: poller.state.connection });
 });
 
-/** Version courante : numéro (package.json) + commit git + date. */
-apiRouter.get('/system/version', requireAuth, async (_req, res) => {
-  let version = '0.0.0';
-  try {
-    version = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, 'package.json'), 'utf8')).version ?? version;
-  } catch {
-    /* ignore */
-  }
-  let commit = '';
-  let date = '';
-  try {
-    commit = await git(['rev-parse', '--short', 'HEAD']);
-    date = await git(['log', '-1', '--format=%cI']);
-  } catch {
-    /* pas un repo git / git absent */
-  }
-  res.json({ version, commit, date });
+/** Version du code EN SERVICE (figée au démarrage, cf. system.ts) — pas celle du disque. */
+apiRouter.get('/system/version', requireAuth, (_req, res) => {
+  res.json(RUNNING);
+});
+
+/** Avancement de la mise à jour (écrit par self-update.sh) + journal en cas d'échec. */
+apiRouter.get('/system/update-status', requireAuth, (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ ...readUpdateStatus(), running: RUNNING });
 });
 
 /** Vérifie s'il y a des commits en amont (git fetch + comparaison origin/main). */
 apiRouter.get('/system/update-check', requireAuth, async (_req, res) => {
   try {
     await git(['fetch', '--quiet', 'origin', 'main']);
-    const behind = Number(await git(['rev-list', '--count', 'HEAD..origin/main']));
-    const current = await git(['rev-parse', '--short', 'HEAD']);
+    // Comparé à la version EN SERVICE (pas au disque : après un git pull dont la
+    // construction a échoué, le disque est en avance sur ce qui tourne).
+    const base = RUNNING.commit || 'HEAD';
+    const behind = Number(await git(['rev-list', '--count', `${base}..origin/main`]));
+    const current = RUNNING.commit || (await git(['rev-parse', '--short', 'HEAD']));
     const latest = await git(['rev-parse', '--short', 'origin/main']);
     // Version telle qu'elle est SUR le dépôt distant (pas la copie locale).
     let latestVersion = '';
@@ -502,7 +498,13 @@ apiRouter.get('/system/update-check', requireAuth, async (_req, res) => {
  * le serveur redémarrera de lui-même à la fin.
  */
 apiRouter.post('/system/update', requireAuth, (_req, res) => {
+  if (updateInProgress()) {
+    res.status(409).json({ error: 'Une mise à jour est déjà en cours.' });
+    return;
+  }
   try {
+    // Statut posé AVANT le lancement : la page ne lit jamais celui d'une mise à jour précédente.
+    writeUpdateStatus('running', 'Démarrage…');
     const script = path.join(PROJECT_ROOT, 'scripts', 'self-update.sh');
     const child = spawn('sh', [script], {
       cwd: PROJECT_ROOT,
@@ -512,6 +514,7 @@ apiRouter.post('/system/update', requireAuth, (_req, res) => {
         ...process.env,
         PATH: `/usr/bin:/usr/local/bin:${path.dirname(process.execPath)}:${process.env.PATH ?? ''}`,
         NODE_PID: String(process.pid),
+        CONFIG_DIR: getConfigDir(),
       },
     });
     child.unref();

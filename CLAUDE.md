@@ -188,8 +188,8 @@ affichent toujours la même chose (pose, niveau, stats).
   (projet séparé `MacOS/ClawdWidget`). `requireAuth` accepte en plus `Authorization: Bearer <clé>`
   (ou `X-API-Key`). `POST`/`GET` renvoient aussi un deep-link `clawd://setup?base=&key=`
   + son QR (appairage sans recopie). Clé stockée dans `auth.json` (`apiToken`).
-- `GET /system/version` · `GET /system/update-check` (git fetch + behind) ·
-  `POST /system/update` (lance `scripts/self-update.sh` détaché).
+- `GET /system/version` (version en service) · `GET /system/update-check` (git fetch + behind) ·
+  `GET /system/update-status` · `POST /system/update` (lance `scripts/self-update.sh` détaché ; 409 si déjà en cours).
 
 ## Commandes
 
@@ -224,6 +224,13 @@ node scripts/gen-icons.mjs     # régénère les icônes PWA/iPhone web/public/ 
   ligne par panne réseau). `RENDER_API_KEY` si le serveur n'est pas local.
 - **Mise à jour** (`self-update.sh`) : verrou (`CONFIG_DIR/update.lock`) et
   retour au commit précédent si `npm ci`/build échoue (service non redémarré).
+  Avancement écrit dans `CONFIG_DIR/update.status` (`état|message` : running,
+  failed, restarting ; le serveur passe à `done` au démarrage), lu par
+  `GET /system/update-status` (+ fin de `update.log` si échec).
+  ⚠ `GET /system/version` = version du **processus en service** (`RUNNING`,
+  `system.ts`, figée au démarrage) — jamais relue sur le disque : `git pull`
+  change le dépôt bien avant la fin du build. `update-check` compare aussi
+  cette version-là à `origin/main`.
 - **Assets web** pré-compressés au build (`scripts/precompress.mjs`, .br/.gz)
   et servis par `index.ts` selon `Accept-Encoding` — pas de compression à la volée.
 - **Rendu déterministe** : pour tester un rendu, appeler `rasterizeSvg` /
@@ -237,7 +244,7 @@ node scripts/gen-icons.mjs     # régénère les icônes PWA/iPhone web/public/ 
 ## Structure
 
 ```
-server/src/  index · poller · render · look · idle · pixel · clawd-grid · clawd · clawd-props · sprites · raster · mascot · poses · auth · credentials · usage · config · fsutil · routes/api
+server/src/  index · poller · render · look · idle · pixel · clawd-grid · clawd · clawd-props · sprites · raster · mascot · poses · auth · credentials · usage · config · fsutil · system · routes/api
 server/fonts/  Tiny5 (police pixel embarquée pour resvg, OFL)
 web/src/     App · api · lib/{usage,clawd} · pages/* (dont config/*) · components/* (dont ClawdLive, PoseEditor, Modal, ui)
 scripts/     epaper_push.py · self-update.sh · gen-assets.mjs · gen-icons.mjs · precompress.mjs · *.service

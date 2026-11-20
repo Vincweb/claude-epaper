@@ -95,6 +95,8 @@ export function Modal({
 
   return (
     // Mobile : feuille qui monte du bas (pleine largeur, poignée) ; ordinateur : fenêtre centrée.
+    // Dans l'app installée, iOS laisse une bande sous la zone de la barre d'accueil :
+    // une « ombre » pleine couleur panel prolonge la feuille jusqu'au bord de l'écran.
     <div
       className={`fixed inset-0 ${z} flex items-end justify-center bg-black/60 backdrop-blur-[2px] sm:items-center sm:p-4`}
       onClick={() => close.current()}
@@ -105,7 +107,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[28px] border border-white/10 bg-panel shadow-2xl motion-safe:animate-[sheet-in_0.28s_cubic-bezier(.2,.9,.3,1)] sm:max-h-[90vh] sm:rounded-2xl sm:motion-safe:animate-none ${className}`}
+        className={`flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[28px] border border-white/10 bg-panel shadow-[0_120px_0_0_var(--color-panel)] sm:shadow-2xl motion-safe:animate-[sheet-in_0.28s_cubic-bezier(.2,.9,.3,1)] sm:max-h-[90vh] sm:rounded-2xl sm:motion-safe:animate-none ${className}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div aria-hidden className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-white/20 sm:hidden" />
