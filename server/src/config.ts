@@ -24,6 +24,8 @@ export interface AppConfig {
   bornAt: string;
   /** XP cumulée depuis la conso (accélère le niveau). */
   usageXp: number;
+  /** Dalle au repos quand Clawd dort (nuit / inactivité) : une image par minute. */
+  epaperCalmWhenAsleep: boolean;
 }
 
 const CONFIG_DIR = process.env.CONFIG_DIR || path.join(os.homedir(), '.claude-epaper');
@@ -40,6 +42,7 @@ const DEFAULTS: AppConfig = {
   rotateMinutes: 30,
   bornAt: '',
   usageXp: 0,
+  epaperCalmWhenAsleep: true,
 };
 
 export function ensureConfigDir(): void {
@@ -90,6 +93,7 @@ export function sanitizeConfigPatch(raw: unknown): Partial<AppConfig> {
   }
   if (r.epaperLayout !== undefined) out.epaperLayout = normalizeStoredLayout(r.epaperLayout);
   if (r.epaperRotate !== undefined) out.epaperRotate = Number(r.epaperRotate) === 180 ? 180 : 0;
+  if (typeof r.epaperCalmWhenAsleep === 'boolean') out.epaperCalmWhenAsleep = r.epaperCalmWhenAsleep;
   if (typeof r.birthday === 'string') {
     const b = r.birthday.trim();
     if (b === '' || /^(\d{4}-)?\d{2}-\d{2}$/.test(b)) out.birthday = b;

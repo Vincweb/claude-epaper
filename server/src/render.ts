@@ -49,6 +49,19 @@ export interface PanelData {
   tick: number;
 }
 
+/** Cadence de la dalle quand elle est « au repos » (Clawd dort). */
+export const CALM_PERIOD_S = 60;
+
+/**
+ * Dalle au repos ? Quand Clawd dort (nuit ou inactivité) et que le réglage est
+ * actif, l'animation n'avance plus qu'une fois par minute : la boucle e-paper,
+ * qui ne touche la dalle que si l'image change, passe de ~3 600 à ~60
+ * rafraîchissements par heure. Personne ne regarde, rien n'est perdu.
+ */
+export function epaperCalm(): boolean {
+  return loadConfig().epaperCalmWhenAsleep && poller.state.pose.key === 'sleep';
+}
+
 /** Temps avant reset, compact et en majuscules (les minuscules Tiny5 font 4 px). */
 export function resetShort(resetsAt: string | null): string {
   if (!resetsAt) return '--';
@@ -77,7 +90,10 @@ function gatherData(): PanelData {
     age: st.ageLabel,
     repu: st.stats.find((s) => s.key === 'repu')?.value ?? 0,
     joie: st.stats.find((s) => s.key === 'bonheur')?.value ?? 0,
-    tick: Math.floor(Date.now() / 1000),
+    // Au repos : seconde arrondie à la minute (multiple de 60 → point plein, fixe).
+    tick: epaperCalm()
+      ? Math.floor(Date.now() / 1000 / CALM_PERIOD_S) * CALM_PERIOD_S
+      : Math.floor(Date.now() / 1000),
   };
 }
 

@@ -222,6 +222,11 @@ node scripts/gen-icons.mjs     # régénère les icônes PWA/iPhone web/public/ 
   [Bjorn](https://github.com/infinition/Bjorn). Erreur SPI → réinit sans
   planter ; SIGTERM → `epd.sleep()` ; journaux agrégés (bilan horaire, une
   ligne par panne réseau). `RENDER_API_KEY` si le serveur n'est pas local.
+  **Repos** (`epaperCalmWhenAsleep`, défaut vrai) : quand la pose est `sleep`
+  (nuit / inactivité), `gatherData` arrondit `tick` à la minute
+  (`CALM_PERIOD_S`) → ~1 image/min au lieu de 1/s ; `render.png` envoie
+  `X-Epaper-Calm: 1` et la boucle saute alors le refresh complet à l'horloge
+  (pas de flash nocturne), puis en force un au réveil.
 - **Mise à jour** (`self-update.sh`) : verrou (`CONFIG_DIR/update.lock`) et
   retour au commit précédent si `npm ci`/build échoue (service non redémarré).
   Avancement écrit dans `CONFIG_DIR/update.status` (`état|message` : running,

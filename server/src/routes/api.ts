@@ -18,7 +18,7 @@ import {
   startDashboardLogin,
 } from '../credentials.js';
 import { fetchUsage, redactSecrets, UsageError } from '../usage.js';
-import { normalizeLayout, renderEpaperPng } from '../render.js';
+import { epaperCalm, normalizeLayout, renderEpaperPng } from '../render.js';
 import { clearSpriteCache, generateSprite, poseAssetInfo, readPoseAsset, SPRITE_SIZE, type SpriteVariant } from '../sprites.js';
 import { LOOK_PARTS, SPECIAL_POSES, sanitizeLook, type Pose } from '../mascot.js';
 import {
@@ -192,6 +192,8 @@ apiRouter.get('/render.png', requireAuthOrLocal, (req, res) => {
     const png = renderEpaperPng({ layout, scale, rotate });
     res.set('Content-Type', 'image/png');
     res.set('Cache-Control', 'no-store');
+    // Signale le mode repos à la boucle e-paper (pas de refresh complet périodique la nuit).
+    res.set('X-Epaper-Calm', epaperCalm() ? '1' : '0');
     res.send(png);
   } catch (e) {
     res.status(500).json({ error: e instanceof Error ? e.message : String(e) });

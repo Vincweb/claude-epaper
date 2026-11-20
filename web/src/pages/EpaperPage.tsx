@@ -16,6 +16,8 @@ export function EpaperPage() {
   const [optimistic, setOptimistic] = useState<Partial<AppConfig>>({});
   const layout = optimistic.epaperLayout ?? config.epaperLayout;
   const rotate = optimistic.epaperRotate ?? config.epaperRotate;
+  const calm = optimistic.epaperCalmWhenAsleep ?? config.epaperCalmWhenAsleep;
+  const asleep = state?.pose.key === 'sleep';
 
   const apply = async (patch: Partial<AppConfig>) => {
     setOptimistic((o) => ({ ...o, ...patch }));
@@ -68,6 +70,20 @@ export function EpaperPage() {
                 label="Rotation 180°"
                 checked={rotate === 180}
                 onChange={(on) => void apply({ epaperRotate: on ? 180 : 0 })}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span>
+                Repos quand Clawd dort
+                <span className="block text-[11px] text-white/55">
+                  La nuit ou après inactivité, une image par minute au lieu d'une par seconde : moins
+                  d'usure, pas de flash nocturne.{calm && asleep ? ' Actif en ce moment.' : ''}
+                </span>
+              </span>
+              <Switch
+                label="Repos quand Clawd dort"
+                checked={calm}
+                onChange={(on) => void apply({ epaperCalmWhenAsleep: on })}
               />
             </div>
           </fieldset>

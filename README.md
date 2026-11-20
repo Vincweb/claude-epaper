@@ -178,6 +178,11 @@ Réglages (variables d'environnement, dans [`epaper-push.service`](scripts/epape
 La boucle encaisse les erreurs de la dalle (réinitialisation sans planter) et
 met la dalle en **veille** quand le service s'arrête.
 
+**Repos quand Clawd dort** (page e-paper, activé par défaut) : la nuit ou après
+une période d'inactivité, l'image n'avance plus qu'une fois par minute au lieu
+d'une fois par seconde — beaucoup moins d'usure, et pas de flash de refresh
+complet en pleine nuit (un refresh complet est fait au réveil).
+
 > Le rendu est généré **sans anti-aliasing** : l'onglet **e-paper** du dashboard
 > montre exactement ce que reçoit la dalle. Dalle montée à l'envers ? Coche
 > **Rotation 180°** sur la page **e-paper** (l'aperçu web, lui, reste à l'endroit).

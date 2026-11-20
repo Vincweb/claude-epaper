@@ -62,6 +62,8 @@ export interface AppConfig {
   bornAt: string;
   /** XP cumulée depuis la conso. */
   usageXp: number;
+  /** Dalle au repos quand Clawd dort (une image par minute). */
+  epaperCalmWhenAsleep: boolean;
 }
 
 export type Mood = 'calm' | 'alert' | 'worried' | 'panic';

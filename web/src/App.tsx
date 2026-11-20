@@ -23,6 +23,7 @@ const DEFAULT_CONFIG: AppConfig = {
   rotateMinutes: 30,
   bornAt: '',
   usageXp: 0,
+  epaperCalmWhenAsleep: true,
 };
 
 export interface AppData {

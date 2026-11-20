@@ -99,10 +99,15 @@ def make_session():
 
 
 def fetch_png(session):
-    """Récupère le PNG brut et son empreinte (sans le décoder)."""
+    """Récupère le PNG brut, son empreinte (sans le décoder) et le mode repos.
+
+    Repos (en-tête X-Epaper-Calm: 1) : Clawd dort, le serveur ne fait plus
+    avancer l'image qu'une fois par minute.
+    """
     r = session.get(RENDER_URL, timeout=REQUEST_TIMEOUT)
     r.raise_for_status()
-    return r.content, hashlib.md5(r.content).digest()
+    calm = r.headers.get("X-Epaper-Calm") == "1"
+    return r.content, hashlib.md5(r.content).digest(), calm
 
 
 def to_bitmap(png, width, height):
@@ -148,6 +153,8 @@ def main():
     fetch_failing = False     # pour ne journaliser que les transitions
     stats = {"partiels": 0, "complets": 0, "fetch_ko": 0}
     last_report = time.monotonic()
+    was_calm = False
+    full_on_next_change = False  # réveil : refresh complet à la prochaine image
 
     mode = "partiel" if supports_partial else "complet uniquement"
     log(f"{EPD_MODEL} {epd.width}x{epd.height} — mode {mode}")
@@ -155,7 +162,7 @@ def main():
     try:
         while True:
             try:
-                png, digest = fetch_png(session)
+                png, digest, calm = fetch_png(session)
                 if fetch_failing:
                     log("serveur de nouveau joignable")
                     fetch_failing = False
@@ -169,9 +176,18 @@ def main():
 
             now = time.monotonic()
             changed = digest != last_digest
+            # Au repos (nuit) : pas de refresh complet à l'horloge — son flash
+            # réveillerait la pièce, et une image par minute marque peu la dalle.
+            # Au réveil : un refresh complet efface ce qui a pu s'accumuler.
+            if was_calm and not calm:
+                full_on_next_change = True
+            if calm != was_calm:
+                log("dalle au repos (Clawd dort)" if calm else "dalle réveillée")
+                was_calm = calm
             due_full = (
-                partials_since_full >= FULL_REFRESH_EVERY
-                or (now - last_full) >= FULL_REFRESH_SECONDS
+                full_on_next_change
+                or partials_since_full >= FULL_REFRESH_EVERY
+                or (not calm and (now - last_full) >= FULL_REFRESH_SECONDS)
             )
 
             if changed:
@@ -188,6 +204,7 @@ def main():
                             base_set = True
                         partials_since_full = 0
                         last_full = now
+                        full_on_next_change = False
                         stats["complets"] += 1
                     else:
                         # Refresh partiel : rapide, tant qu'on n'a pas atteint le quota.
