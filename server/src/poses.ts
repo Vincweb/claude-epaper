@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getConfigDir } from './config.js';
 import { writeJsonAtomic } from './fsutil.js';
-import { ALL_POSES, SPECIAL_POSES, lookFromName, sanitizeLook, type Look, type Pose } from './mascot.js';
+import { ALL_POSES, DEFAULT_MOODS, SPECIAL_POSES, lookFromName, sanitizeLook, type Look, type Pose } from './mascot.js';
 
 /**
  * Personnalisation des poses persistée dans CONFIG_DIR/poses.json :
@@ -11,8 +11,12 @@ import { ALL_POSES, SPECIAL_POSES, lookFromName, sanitizeLook, type Look, type P
  *    (aucune pose de rotation n'est codée en dur ; seules les spéciales le sont).
  *  - `looks`  : look composé dans l'éditeur (yeux, bouche, accessoire, chapeau,
  *    animation) → le sprite est généré à partir de lui (cf. sprites.ts).
- * Sans look enregistré, une humeur perso prend le look tiré de son nom (`seed`,
- * figé à la création : la renommer ne change pas sa tête).
+ *  - `seeded` : humeurs par défaut (`DEFAULT_MOODS` : Réfléchit, Recherche,
+ *    Travaille, Parle, Terminé, Pause café) déjà semées dans `custom` — chacune l'est UNE seule fois, une
+ *    humeur par défaut supprimée ne revient donc pas toute seule.
+ * Sans look enregistré, une humeur par défaut prend le look dessiné pour elle,
+ * une humeur perso celui tiré de son nom (`seed`, figé à la création : la
+ * renommer ne change pas sa tête).
  */
 interface CustomPose {
   key: string;
@@ -23,6 +27,7 @@ interface UserPoses {
   titles: Record<string, string>;
   custom: CustomPose[];
   looks: Record<string, Look>;
+  seeded: string[];
 }
 
 const MAX_TITLE = 40;
@@ -32,19 +37,27 @@ function file(): string {
   return path.join(getConfigDir(), 'poses.json');
 }
 
+const empty = (): UserPoses => ({ titles: {}, custom: [], looks: {}, seeded: [] });
+
+/** Lit poses.json ; lève si le fichier manque (ENOENT) ou est illisible. */
+function read(): UserPoses {
+  const raw = JSON.parse(fs.readFileSync(file(), 'utf8'));
+  const looks: Record<string, Look> = {};
+  if (raw.looks && typeof raw.looks === 'object')
+    for (const [k, v] of Object.entries(raw.looks)) looks[k] = sanitizeLook(v);
+  return {
+    titles: raw.titles && typeof raw.titles === 'object' ? raw.titles : {},
+    custom: Array.isArray(raw.custom) ? raw.custom.filter((c: CustomPose) => c?.key && c?.title) : [],
+    looks,
+    seeded: Array.isArray(raw.seeded) ? raw.seeded.filter((k: unknown) => typeof k === 'string') : [],
+  };
+}
+
 function load(): UserPoses {
   try {
-    const raw = JSON.parse(fs.readFileSync(file(), 'utf8'));
-    const looks: Record<string, Look> = {};
-    if (raw.looks && typeof raw.looks === 'object')
-      for (const [k, v] of Object.entries(raw.looks)) looks[k] = sanitizeLook(v);
-    return {
-      titles: raw.titles && typeof raw.titles === 'object' ? raw.titles : {},
-      custom: Array.isArray(raw.custom) ? raw.custom.filter((c: CustomPose) => c?.key && c?.title) : [],
-      looks,
-    };
+    return read();
   } catch {
-    return { titles: {}, custom: [], looks: {} };
+    return empty();
   }
 }
 
@@ -52,11 +65,77 @@ function save(u: UserPoses): void {
   writeJsonAtomic(file(), u);
 }
 
-function customToPose(c: CustomPose, looks: UserPoses['looks']): Pose {
-  return { ...(looks[c.key] ?? lookFromName(c.seed ?? c.title)), key: c.key, title: c.title };
+/** Look dessiné de chaque humeur par défaut (sans clé ni titre). */
+const DEFAULT_LOOKS = new Map<string, Look>(DEFAULT_MOODS.map(({ key, title: _title, ...look }) => [key, look]));
+
+/** Cette clé est-elle celle d'une humeur par défaut (`DEFAULT_MOODS`) ? */
+export function isDefaultMood(key: string): boolean {
+  return DEFAULT_LOOKS.has(key);
 }
 
-/** Poses personnalisées (rotation), avec leur look (enregistré ou tiré du nom). */
+function customToPose(c: CustomPose, looks: UserPoses['looks']): Pose {
+  const look = looks[c.key] ?? DEFAULT_LOOKS.get(c.key) ?? lookFromName(c.seed ?? c.title);
+  return { ...look, key: c.key, title: c.title };
+}
+
+const fromDefault = ({ key, title }: Pose): CustomPose => ({ key, title });
+
+/**
+ * Sème les humeurs par défaut dans poses.json, UNE fois chacune (`seeded`) :
+ * une installation neuve démarre avec toutes les humeurs par défaut en
+ * rotation, une installation existante reçoit celles qu'elle n'a jamais eues
+ * en tête de sa rotation à la mise à jour (ajouter une humeur à `DEFAULT_MOODS`
+ * plus tard suffit donc à la livrer) ; une humeur supprimée ensuite ne revient
+ * pas (cf. `restoreDefaultMoods`). Appelé au démarrage du serveur.
+ * Fichier présent mais illisible → on n'écrit RIEN (sinon on écraserait les
+ * humeurs de l'utilisateur avec une liste vide).
+ */
+export function seedDefaultMoods(): void {
+  let u: UserPoses;
+  try {
+    u = read();
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') return;
+    u = empty();
+  }
+  const fresh = DEFAULT_MOODS.filter((m) => !u.seeded.includes(m.key));
+  if (!fresh.length) return;
+  const absent = fresh.filter((m) => !u.custom.some((c) => c.key === m.key));
+  // Une ancienne pose de base a pu porter la même clé (ex. `coffee`, avant que
+  // la rotation devienne 100 % perso) : on oublie son nom et son look restés
+  // dans le fichier, l'humeur arrive avec ceux dessinés pour elle.
+  for (const m of absent) {
+    delete u.titles[m.key];
+    delete u.looks[m.key];
+  }
+  u.custom = [...absent.map(fromDefault), ...u.custom];
+  u.seeded.push(...fresh.map((m) => m.key));
+  save(u);
+}
+
+/** Humeurs par défaut absentes de la rotation (supprimées par l'utilisateur). */
+export function missingDefaultMoods(): Pose[] {
+  const keys = new Set(load().custom.map((c) => c.key));
+  return DEFAULT_MOODS.filter((m) => !keys.has(m.key));
+}
+
+/** Remet en tête de rotation les humeurs par défaut supprimées, avec leur nom
+ * et leur look d'origine. Renvoie celles qui ont été remises. */
+export function restoreDefaultMoods(): Pose[] {
+  const u = load();
+  const missing = DEFAULT_MOODS.filter((m) => !u.custom.some((c) => c.key === m.key));
+  if (!missing.length) return [];
+  for (const m of missing) {
+    delete u.titles[m.key];
+    delete u.looks[m.key];
+  }
+  u.custom = [...missing.map(fromDefault), ...u.custom];
+  u.seeded = [...new Set([...u.seeded, ...missing.map((m) => m.key)])];
+  save(u);
+  return missing;
+}
+
+/** Humeurs de rotation (par défaut + perso), avec leur look (enregistré, dessiné ou tiré du nom). */
 export function customPoses(): Pose[] {
   const u = load();
   return u.custom.map((c) => customToPose(c, u.looks));
@@ -82,7 +161,7 @@ export function findPose(key: string): Pose | undefined {
   return customPoses().find((p) => p.key === key);
 }
 
-/** Pool de rotation : uniquement les humeurs personnalisées. */
+/** Pool de rotation : les humeurs de poses.json (par défaut + perso). */
 export function rotationPoses(): Pose[] {
   return customPoses();
 }
@@ -121,7 +200,8 @@ export function saveLook(key: string, look: unknown): Look | null {
   return u.looks[key];
 }
 
-/** Oublie le look composé : retour au dessin d'origine (ou au look du nom). */
+/** Oublie le look composé : retour au dessin d'origine (pose de base ou humeur
+ * par défaut) ou au look tiré du nom (humeur perso). */
 export function deleteLook(key: string): boolean {
   const u = load();
   if (!Object.hasOwn(u.looks, key)) return false;
@@ -145,7 +225,9 @@ export function addCustomPose(title: string): Pose | null {
   return customToPose(custom, u.looks);
 }
 
-/** Supprime une pose personnalisée (renommage et look associés aussi). */
+/** Supprime une humeur de rotation (renommage et look associés aussi). Une
+ * humeur par défaut supprimée reste semée : elle ne revient que via
+ * `restoreDefaultMoods`. */
 export function deleteCustomPose(key: string): boolean {
   const u = load();
   const i = u.custom.findIndex((c) => c.key === key);

@@ -6,6 +6,8 @@ import {
   poseAssetUrl,
   renamePose,
   resetPoseLook,
+  restoreDefaultMoods,
+  type Gallery,
   type LookParts,
   type PoseInfo,
   type SpriteVariant,
@@ -84,9 +86,10 @@ function PoseCard({
   const live = variant === 'web';
   const onReset = () => void run(() => resetPoseLook(pose.key));
 
-  // Seules les humeurs personnalisées (rotation) sont supprimables.
+  // Seules les humeurs de rotation sont supprimables (une par défaut peut être remise).
   const onRemove = () => {
-    if (window.confirm(`Supprimer l'humeur « ${pose.title} » ?`)) void run(() => deletePose(pose.key));
+    const back = pose.builtin ? ' Tu pourras la remettre plus tard.' : '';
+    if (window.confirm(`Supprimer l'humeur « ${pose.title} » ?${back}`)) void run(() => deletePose(pose.key));
   };
 
   return (
@@ -132,7 +135,9 @@ function PoseCard({
             </span>
           </button>
         )}
-        <div className="text-xs text-white/55">{POSE_DESC[pose.key] ?? 'humeur personnalisée'}</div>
+        <div className="text-xs text-white/55">
+          {POSE_DESC[pose.key] ?? (pose.builtin ? 'humeur par défaut' : 'humeur personnalisée')}
+        </div>
         <div className="mt-1 flex flex-wrap items-center justify-center gap-1">
           <span className="rounded-full bg-white/[0.08] px-2 py-0.5 text-[11px] text-white/60">
             {live ? 'vectoriel animé' : info.animated ? 'GIF animé' : 'PNG'}
@@ -233,12 +238,44 @@ function AddPoseCard({ onAdded }: { onAdded: () => void }) {
   );
 }
 
+/** Humeurs par défaut supprimées : un bouton pour les remettre en rotation. */
+function RestoreDefaults({ missing, onRestored }: { missing: Gallery['missingDefaults']; onRestored: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  if (!missing.length) return null;
+  const restore = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await restoreDefaultMoods();
+      onRestored();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'échec');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const names = missing.map((m) => `« ${m.title} »`).join(', ');
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-2">
+      <button onClick={() => void restore()} disabled={busy} className="btn btn-sm">
+        <Icon name="undo" className="size-4" />
+        {missing.length > 1 ? 'Remettre les humeurs par défaut' : 'Remettre l’humeur par défaut'}
+      </button>
+      <span className="text-xs text-white/55">{names}</span>
+      {error && <span className="text-[10px] text-bad">{error}</span>}
+    </div>
+  );
+}
+
 /** Galerie des poses : visuels e-paper (N&B) et web (couleur), en deux groupes
  * (rotation / spéciales). Chaque pose = un sprite généré depuis son look (éditeur),
- * renommable ; les poses de rotation s'ajoutent/suppriment. */
+ * renommable ; les poses de rotation s'ajoutent/suppriment, celles par défaut
+ * (Réfléchit, Travaille, Terminé…) se remettent si on les a supprimées. */
 export function StylesGallery() {
   const [poses, setPoses] = useState<PoseInfo[]>([]);
   const [parts, setParts] = useState<LookParts | null>(null);
+  const [missingDefaults, setMissingDefaults] = useState<Gallery['missingDefaults']>([]);
   const [editing, setEditing] = useState<PoseInfo | null>(null);
   const [variant, setVariant] = useState<SpriteVariant>('epaper');
   const [bump, setBump] = useState(1); // cache-bust des <img> après un changement
@@ -247,6 +284,7 @@ export function StylesGallery() {
     void loadGallery().then((g) => {
       setPoses(g.poses);
       setParts(g.parts);
+      setMissingDefaults(g.missingDefaults);
     });
     setBump((b) => b + 1);
   }, []);
@@ -276,9 +314,11 @@ export function StylesGallery() {
 
       <h3 className="mb-1 text-sm font-semibold text-white/80">En rotation</h3>
       <p className="mb-3 text-xs text-white/55">
-        Tes humeurs à toi, choisies au fil de la journée (et via le dé de l’écran principal). Ajoute-les ici, renomme-les,
-        génère leur look ou supprime-les. {rotation.length === 0 && 'Aucune pour l’instant — commence par en ajouter une.'}
+        Choisies au fil de la journée (et via le dé de l’écran principal). Celles marquées « humeur par défaut »
+        sont fournies d’office ; ajoute les tiennes, renomme-les, génère leur look ou supprime-les.{' '}
+        {rotation.length === 0 && 'Aucune pour l’instant — Clawd reste Tranquille.'}
       </p>
+      <RestoreDefaults missing={missingDefaults} onRestored={reload} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {rotation.map((p) => (
           <PoseCard

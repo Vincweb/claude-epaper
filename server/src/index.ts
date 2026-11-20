@@ -7,11 +7,18 @@ import { poller } from './poller.js';
 import { apiRouter } from './routes/api.js';
 import { loadConfig, saveConfig } from './config.js';
 import { markUpdateFinishedOnBoot } from './system.js';
+import { seedDefaultMoods } from './poses.js';
 
 // Date de naissance de Clawd : fixée une seule fois, au tout premier lancement.
 if (!loadConfig().bornAt) saveConfig({ bornAt: new Date().toISOString() });
 // Redémarrage provoqué par une mise à jour : elle est terminée.
 markUpdateFinishedOnBoot();
+// Humeurs par défaut (Réfléchit, Travaille, Terminé…) : semées une fois chacune dans poses.json.
+try {
+  seedDefaultMoods();
+} catch (e) {
+  console.error('humeurs par défaut non semées :', e instanceof Error ? e.message : e);
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 8787;

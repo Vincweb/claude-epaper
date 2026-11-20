@@ -51,7 +51,7 @@ affichent toujours la même chose (pose, niveau, stats).
   `web/src/lib/clawd.ts`) — ne jamais y importer de module Node :
   - `look.ts` : types, catalogue `LOOK_PARTS`, `sanitizeLook`, `lookFromName`.
   - `idle.ts` : couche idle, **fonction pure du temps** (`idleFrame(motion, t, dt)` :
-    saut, tassement, regard, bras, paupière). Une valeur clé par seconde = ce
+    saut, tassement, regard, bras, paupière, frappe au clavier `typing`). Une valeur clé par seconde = ce
     que voit la dalle ; en dessous (dt < 0,5) le web relie ces valeurs par
     Catmull-Rom (corps), saccades rapides (regard), paupière progressive,
     tremblement sinusoïdal. ⚠ Toute courbe doit PASSER par les valeurs aux
@@ -66,10 +66,18 @@ affichent toujours la même chose (pose, niveau, stats).
     `0 0 118 118`). Un seul dessin, deux palettes : web orange `#D97757` +
     contour sticker blanc ; dalle = Clawd blanc cerné d'un liseré noir 2 px,
     façon Tamagotchi. Expressions minimalistes (points, traits, arcs).
-    `ANCHORS` = points d'accroche.
+    `ANCHORS` = points d'accroche. Vue de **3/4** (`QUARTER`, d'après le GIF
+    officiel où Clawd tape sur son ordinateur et le sticker du détective),
+    déclenchée par les accessoires `SIDE_ACCESSORIES` (`laptop-side`,
+    `magnifier`) : corps 8×5 (flanc ombré `D` + face), pieds en biais, bras
+    selon l'accessoire ; sur la dalle le flanc est **tramé** (1 px d'encre sur
+    4). Le visage passe par une géométrie `Face` (de face / 3/4) ; les chapeaux
+    (`Props.hat`) suivent la tête décalée.
   - `clawd-props.ts` : accessoires et chapeaux en bitmaps, placés depuis
     `ANCHORS` (trait `k` intégré, animés via `frame.t` / `frame.step`, boucles
-    1/2/4 s). Détails fins et flottants (Z, notes, pluie…) : couche `O_THIN`,
+    1/2/4 s). La loupe (cerclage indigo du sticker détective) suit le regard
+    (`lookX/lookY`) et grossit l'œil droit ; la bulle de parole et l'ordinateur
+    « s'écrivent » mot à mot ; l'ordinateur de profil est posé au sol. Détails fins et flottants (Z, notes, pluie…) : couche `O_THIN`,
     encre pleine sur la dalle (`solid`), sans liseré.
   ⚠ `LOOK_PARTS` : retirer une pièce = lui donner un alias dans `LEGACY`
   (`look.ts`) — les looks enregistrés ne doivent pas retomber sur le défaut.
@@ -86,13 +94,21 @@ affichent toujours la même chose (pose, niveau, stats).
   480×480 couleur fixe (téléchargement, widget iOS). Quelques ms, cache par look.
 - `mascot.ts` : logique de pose partagée, `selectPose`/`forcedPose`, stats,
   niveau. **Aucune pose de rotation codée** : `SHUFFLE_POOL` est vide, la rotation
-  vient des humeurs perso. `SPECIAL_POSES` = poses de base (Tranquille par défaut
+  vient de `poses.json`. `SPECIAL_POSES` = poses de base (Tranquille par défaut
   `DEFAULT_POSE`, stress alert/worried/panic, dodo, anniversaire).
+  `DEFAULT_MOODS` = humeurs par défaut **Réfléchit / Recherche / Travaille /
+  Parle / Terminé / Pause café**, clés STABLES `think` / `search` / `work` /
+  `talk` / `done` / `coffee` (cible future des événements Claude Code, cf.
+  ROADMAP) : leur look est dessiné ici, mais elles vivent dans la rotation.
 - `poses.ts` : personnalisation persistée (`CONFIG_DIR/poses.json`) — renommage
   (`titles`, spéciale ou perso), humeurs de rotation (`custom`, = toute la
   rotation) et looks composés (`looks`) ; `resolvePose`, `customPoses`,
   `rotationPoses`, `findPose`. Une humeur perso sans look prend un look
   **déterministe tiré de son nom** (`lookFromName`, graine `seed` figée à la création).
+  `seedDefaultMoods()` (au démarrage) sème les `DEFAULT_MOODS` dans `custom`,
+  **une fois chacune** (`seeded`) : supprimée, une humeur par défaut ne revient
+  que via `restoreDefaultMoods()` ; sans look enregistré elle prend son look
+  dessiné (« Réinitialiser » y revient). `poses.json` illisible → rien n'est écrit.
 - `credentials.ts` : une seule copie gérée, `CONFIG_DIR/credentials.json`
   (600), rafraîchie par l'app (refresh token à rotation, **un seul refresh à la
   fois**). Son champ `origin` dit d'où elle vient :
@@ -160,11 +176,13 @@ affichent toujours la même chose (pose, niveau, stats).
   dalle (auth ; boucle locale directe exemptée). L'aperçu web force `rotate=0`
   et se rafraîchit chaque seconde (animations, en pause onglet caché). PNG mis
   en cache (LRU indexé par le SVG). Anciennes valeurs de layout acceptées.
-- `GET /poses` (liste + look + flags `special`/`userAdded`/`lookCustom`/animé,
-  catalogue des pièces) · `GET /poses/:variant/:key` (`variant` = `epaper`|`web`)
+- `GET /poses` (liste + look + flags `special`/`userAdded`/`builtin`/`lookCustom`/animé,
+  catalogue des pièces, `missingDefaults` = humeurs par défaut supprimées) · `GET /poses/:variant/:key` (`variant` = `epaper`|`web`)
   — sprite généré (téléchargement, widget iOS ; route publique).
 - `POST /poses` `{title}` (ajoute une humeur de rotation) · `PUT /poses/:key`
-  `{title}` (renomme, base ou perso) · `DELETE /poses/:key` (supprime une perso).
+  `{title}` (renomme, base ou perso) · `DELETE /poses/:key` (supprime une humeur
+  de rotation, par défaut comprise) · `POST /poses/defaults` (remet les humeurs
+  par défaut supprimées).
   Persistées dans `CONFIG_DIR/poses.json` (`server/src/poses.ts`).
 - `GET /poses/preview?variant=&eyes=&mouth=&accessory=&overhead=&motion=&size=`
   (aperçu généré, rien d'enregistré) · `PUT /poses/:key/look` `{look}` (enregistre

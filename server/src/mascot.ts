@@ -44,8 +44,37 @@ const PANIC: Pose = { key: 'panic', title: 'Cramé', eyes: 'cross', mouth: 'open
 /** Pose de repli, affichée par défaut (rotation vide, aucune personnalisée). */
 export const DEFAULT_POSE: Pose = NEUTRAL;
 
-/** La rotation ne contient AUCUNE pose de base : elle est entièrement composée
- * des humeurs personnalisées de l'utilisateur (cf. poses.ts). */
+/* Humeurs PAR DÉFAUT : ce que fait Claude, dans l'ordre d'une tâche — il
+ * réfléchit, cherche, travaille, parle, a terminé, fait une pause. Inspirées
+ * des visuels officiels : Travaille = le GIF où Clawd se tourne de 3/4 pour
+ * taper sur son ordinateur ; Recherche = le sticker du détective (chapeau, œil
+ * plissé, loupe qui grossit l'autre œil) ; Terminé = le drapeau à damier du
+ * GIF ; Pause café = le sticker de la tasse ; Réfléchit = la bulle de pensée.
+ * Clés STABLES : ce sont elles que viseront les événements Claude Code (cf.
+ * ROADMAP, plugin multi-appareils). Elles ne sont pas codées dans la rotation :
+ * poses.ts les SÈME une fois chacune dans les humeurs perso (poses.json) →
+ * renommables, look modifiable, supprimables comme les autres ;
+ * « Réinitialiser » revient au look dessiné ici. */
+const THINK: Pose = { key: 'think', title: 'Réfléchit', eyes: 'square', overhead: 'bubble', motion: 'think' };
+const WORK: Pose = { key: 'work', title: 'Travaille', eyes: 'square', accessory: 'laptop-side', motion: 'type' };
+const SEARCH: Pose = {
+  key: 'search',
+  title: 'Recherche',
+  eyes: 'peer',
+  accessory: 'magnifier',
+  overhead: 'detective',
+  motion: 'search',
+};
+const TALK: Pose = { key: 'talk', title: 'Parle', eyes: 'square', mouth: 'talk', overhead: 'speech', motion: 'sway' };
+const DONE: Pose = { key: 'done', title: 'Terminé', eyes: 'happy', accessory: 'flag', motion: 'bounce' };
+const COFFEE: Pose = { key: 'coffee', title: 'Pause café', eyes: 'square', accessory: 'coffee', motion: 'idle' };
+
+/** Humeurs fournies d'office dans la rotation (semées une fois, cf. poses.ts). */
+export const DEFAULT_MOODS: Pose[] = [THINK, SEARCH, WORK, TALK, DONE, COFFEE];
+
+/** La rotation ne contient AUCUNE pose codée : elle est entièrement composée
+ * des humeurs de poses.json — les humeurs par défaut semées une fois, puis
+ * celles ajoutées par l'utilisateur (cf. poses.ts). */
 export const SHUFFLE_POOL: Pose[] = [];
 
 /** Poses spéciales (déclenchées par un état, pas la rotation) — pour la galerie. */

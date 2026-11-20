@@ -101,8 +101,10 @@ export interface PoseInfo {
   title: string;
   /** Pose contextuelle (déclenchée par un état) plutôt qu'en rotation. */
   special: boolean;
-  /** Pose ajoutée par l'utilisateur (rotation : renommable ET supprimable). */
+  /** Humeur de rotation (renommable ET supprimable). */
   userAdded: boolean;
+  /** Humeur par défaut (Réfléchit, Travaille, Terminé…) : semée d'office, remise si besoin. */
+  builtin: boolean;
   look: Look;
   /** Look composé dans l'éditeur (sinon : dessin d'origine / tiré du nom). */
   lookCustom: boolean;
@@ -110,10 +112,23 @@ export interface PoseInfo {
   web: PoseAssetInfo;
 }
 
-export async function loadGallery(): Promise<{ poses: PoseInfo[]; parts: LookParts | null }> {
+export interface Gallery {
+  poses: PoseInfo[];
+  parts: LookParts | null;
+  /** Humeurs par défaut supprimées de la rotation (à proposer de remettre). */
+  missingDefaults: { key: string; title: string }[];
+}
+
+export async function loadGallery(): Promise<Gallery> {
   const r = await fetch('/api/poses');
   const j = await r.json();
-  return { poses: j.poses ?? [], parts: j.parts ?? null };
+  return { poses: j.poses ?? [], parts: j.parts ?? null, missingDefaults: j.missingDefaults ?? [] };
+}
+
+/** Remet en rotation les humeurs par défaut supprimées. */
+export async function restoreDefaultMoods(): Promise<void> {
+  const r = await fetch('/api/poses/defaults', { method: 'POST' });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? 'restore-failed');
 }
 
 /** Aperçu d'un look, généré à la volée par le serveur (rien n'est enregistré). */

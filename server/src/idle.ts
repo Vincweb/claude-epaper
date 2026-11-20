@@ -68,12 +68,19 @@ interface MotionDef {
   blink?: number[];
   /** Tremblement : ± amplitude (alterné chaque seconde sur la dalle, 5 Hz sur le web). */
   shake?: number;
+  /** Frappe au clavier : les mains se lèvent à tour de rôle de cette hauteur
+   * (gauche les secondes paires, droite les impaires ; 3 frappes/s sur le web). */
+  typing?: number;
 }
 
 // Regard : ±3 px (plus d'une demi-cellule de Clawd), lisible sur la dalle.
 const C: [number, number] = [0, 0];
 const R: [number, number] = [3, 0];
 const L: [number, number] = [-3, 0];
+/** Regard baissé (vers l'écran de l'ordinateur). */
+const D: [number, number] = [0, 2];
+/** Regard levé vers le haut à droite (vers la bulle de pensée). */
+const U: [number, number] = [2, -2];
 
 /** Les animations. Boucles courtes, diviseurs de 12 s, pour que le GIF boucle net. */
 const MOTIONS: Record<ClawdMotion, MotionDef> = {
@@ -83,6 +90,29 @@ const MOTIONS: Record<ClawdMotion, MotionDef> = {
     squash: [0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1],
     look: [C, C, C, C, R, R, C, C, C, L, L, C],
     blink: [2, 7],
+  },
+  // Pensif : les yeux levés vers la bulle, respiration lente, un retour au
+  // centre le temps d'un clignement.
+  think: {
+    loop: 4,
+    look: [U, U, U, C],
+    squash: [0, 0, 1, 1],
+    blink: [3],
+  },
+  // Tape au clavier : yeux sur l'écran, mains qui frappent à tour de rôle, un
+  // coup d'œil au-dessus de l'écran de temps en temps.
+  type: {
+    loop: 4,
+    look: [D, D, D, C],
+    typing: -4,
+    blink: [3],
+  },
+  // Cherche : le regard (et la loupe qui le suit, cf. clawd-props.ts) balaie
+  // la scène, s'attarde en bas à droite, revient.
+  search: {
+    loop: 4,
+    look: [C, R, [3, 2], L],
+    squash: [0, 0, 1, 0],
   },
   // Sautille une seconde sur deux, bras en l'air au sommet.
   bounce: {
@@ -120,6 +150,9 @@ const FLICK = 0.14;
 const BLINK = 0.24;
 /** Tremblement web (Hz) : cos(2π·5·t) alterne pile ± à 10 img/s (GIF). */
 const SHAKE_HZ = 5;
+/** Frappes par seconde sur le web. IMPAIR : la main qui frappe aux secondes
+ * entières est celle de la dalle (gauche les paires, droite les impaires). */
+const TYPE_HZ = 3;
 
 const mod = (a: number, n: number) => ((a % n) + n) % n;
 const ease = (u: number) => (u < 0.5 ? 2 * u * u : 1 - (-2 * u + 2) ** 2 / 2);
@@ -177,14 +210,26 @@ export function idleFrame(motion: ClawdMotion | undefined, t: number, dt: number
     const parity = mod(Math.round(t / dt), 2) ? def.shake : -def.shake;
     shake = stepped ? parity : def.shake * Math.cos(2 * Math.PI * SHAKE_HZ * t);
   }
+  // Frappe : une main à la fois. Dalle = la main de la seconde, levée toute la
+  // seconde ; web = une bosse en cosinus par frappe, au sommet aux secondes
+  // entières (mêmes valeurs que la dalle) et nulle entre deux frappes.
+  let tapL = 0;
+  let tapR = 0;
+  if (def.typing) {
+    const ph = stepped ? Math.floor(t) : t * TYPE_HZ;
+    const strike = Math.round(ph);
+    const v = stepped ? 1 : Math.cos(Math.PI * (ph - strike));
+    if (mod(strike, 2) === 0) tapL = def.typing * v;
+    else tapR = def.typing * v;
+  }
   return {
     bob: smooth(def.bob, tl),
     squash: smooth(def.squash, tl),
     dx: smooth(def.dx, tl) + shake,
     lookX: look[0],
     lookY: look[1],
-    armL: smooth(def.armL, tl),
-    armR: smooth(def.armR, tl),
+    armL: smooth(def.armL, tl) + tapL,
+    armR: smooth(def.armR, tl) + tapR,
     blink,
     t,
     step: Math.floor(t),

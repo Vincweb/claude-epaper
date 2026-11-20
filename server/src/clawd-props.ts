@@ -1,6 +1,6 @@
-import { ANCHORS as A } from './clawd-grid.js';
+import { ANCHORS as A, QUARTER } from './clawd-grid.js';
 import type { IdleFrame } from './idle.js';
-import type { ClawdAccessory, ClawdOverhead } from './look.js';
+import type { ClawdAccessory, ClawdEyes, ClawdOverhead } from './look.js';
 import { bitmap, type Layer, type Mode, type Rect, type Ring, type Swatch } from './pixel.js';
 
 /* ------------------------------------------------------------------------- *
@@ -35,18 +35,30 @@ export const PROP_PALETTE: Record<string, Swatch> = {
   L: { color: '#C9B8FF', mono: 'ink' }, // Z, notes
   S: { color: '#EDE6DC', mono: 'ink' }, // vapeur
   o: { color: '#D97757', mono: 'paper' }, // orange Claude (déco)
+  a: { color: '#E6F4FF', mono: 'paper' }, // verre de la loupe
+  i: { color: '#6E6FD3', mono: 'ink' }, // cerclage et manche de la loupe (sticker détective)
+  h: { color: '#8B6A4A', mono: 'paper' }, // ruban du chapeau de détective
 };
 
 /** Couches d'accessoires, avec leur ancrage (tête ou sol). */
 export interface Props {
-  /** Suivent le haut du corps (chapeaux, objets tenus). */
+  /** Suivent le haut du corps (objets tenus). */
   head: Layer[];
+  /** Au-dessus de la tête (chapeaux, bulles) : suivent le haut du corps, et
+   * la tête décalée quand Clawd est de 3/4. */
+  hat: Layer[];
   /** Restent au sol (skate, ballon). */
   ground: Layer[];
 }
 
+/** Accessoires qui font tourner Clawd de 3/4 (cf. `QUARTER`, clawd.ts). */
+export const SIDE_ACCESSORIES: readonly ClawdAccessory[] = ['laptop-side', 'magnifier'];
+
 /** Objets : même sticker que le corps (web : blanc 3 px ; dalle : liseré noir 2 px). */
 const O: Partial<Record<Mode, readonly Ring[]>> = { color: [[3, 'paper']], mono: [[2, 'ink']] };
+/** Bulle de pensée : contour de 2 px partout, sinon l'anneau blanc de 3 px du
+ * web recollerait la petite bulle à la grande. */
+const O_PUFF: Partial<Record<Mode, readonly Ring[]>> = { color: [[2, 'paper']], mono: [[2, 'ink']] };
 /** Détails fins et flottants : léger contour blanc sur le web ; encre pleine sur la dalle. */
 const O_THIN: Partial<Record<Mode, readonly Ring[]>> = { color: [[2, 'paper']] };
 
@@ -78,16 +90,31 @@ const LAPTOP = [
   '.kddddddddddddk.',
   '.kdlllllllldddk.',
   '.kddddddddddddk.',
-  '.kdllldddddddddk',
+  '.kddddddddddddk.', // ligne en cours de frappe (dessinée à part)
   '.kkkkkkkkkkkkkk.',
   'kGGGGGGGGGGGGGGk',
   'kkkkkkkkkkkkkkkk',
-].map((r) => r.slice(0, 16));
+];
+/** Ligne de code tapée sur l'ordinateur : longueur (en pixels ×2) à chaque image. */
+const TYPED = [1, 3, 5, 7];
+// Loupe 10×10 (×2) : cerclage `i` (indigo du sticker détective), verre `a`.
+const LENS = [
+  '...iiii...',
+  '.iiaaaaii.',
+  '.iaaaaaai.',
+  'iaaaaaaaai',
+  'iaaaaaaaai',
+  'iaaaaaaaai',
+  'iaaaaaaaai',
+  '.iaaaaaai.',
+  '.iiaaaaii.',
+  '...iiii...',
+];
 const BALL = ['..kkk..', '.kwkwk.', 'kwkwkwk', 'kkwkwkk', 'kwkwkwk', '.kwkwk.', '..kkk..'];
 const STAR = ['..y..', '.yyy.', 'yyyyy', '.yyy.', '.y.y.'];
 const HEART = ['.rr.rr.', 'rrrrrrr', 'rrrrrrr', '.rrrrr.', '..rrr..', '...r...'];
 
-function accessory(kind: ClawdAccessory | undefined, mode: Mode, f: IdleFrame, armR: number): Props {
+function accessory(kind: ClawdAccessory | undefined, mode: Mode, f: IdleFrame, armR: number, eyes?: ClawdEyes): Omit<Props, 'hat'> {
   const a = anim(mode, f);
   const hand = A.armTop + armR; // haut de la main droite
   switch (kind) {
@@ -100,9 +127,45 @@ function accessory(kind: ClawdAccessory | undefined, mode: Mode, f: IdleFrame, a
       return { head: [layer(mug), layer(steam, O_THIN)], ground: [] };
     }
     case 'laptop': {
+      // La dernière ligne de code s'écrit mot à mot (dalle : un pas par seconde),
+      // le curseur la suit (il clignote en plus sur le web).
       const x = A.cx - 16, y = A.bottom - 16;
-      const cursor: Rect[] = a.frame(2, 2) ? [] : [{ x: x + 16, y: y + 12, w: 2, h: 2, k: 'l' }];
-      return { head: [layer([...bitmap(LAPTOP, x, y, 2), ...cursor])], ground: [] };
+      const len = TYPED[a.mono ? a.frame(4, 1) : a.frame(4, 2)];
+      const typed: Rect[] = [{ x: x + 6, y: y + 12, w: 2 * len, h: 2, k: 'l' }];
+      const cursor: Rect[] = a.mono || !a.frame(2, 4) ? [{ x: x + 8 + 2 * len, y: y + 12, w: 2, h: 2, k: 'l' }] : [];
+      return { head: [layer([...bitmap(LAPTOP, x, y, 2), ...typed, ...cursor])], ground: [] };
+    }
+    case 'magnifier': {
+      // Le sticker du détective : Clawd de 3/4, la loupe devant l'œil droit
+      // (qui y paraît énorme), débordant de la face ; elle suit le regard, le
+      // manche descend hors du corps, vers la main cachée.
+      const r = (v: number) => (a.mono ? Math.round(v) : v);
+      const lx = QUARTER.x + 43 + r(f.lookX), ly = QUARTER.top + 3 + r(f.lookY);
+      const glass = bitmap(LENS, lx, ly, 2).map((g) => (g.k === 'a' && !a.mono ? { ...g, opacity: 0.75 } : g));
+      // Œil grossi (10 px au lieu de 7), fermé si l'œil droit l'est ; il cligne avec l'autre.
+      const closed = eyes === 'sleep' || eyes === 'wink';
+      const lid = a.mono ? (f.blink >= 0.5 ? 1 : 0) : f.blink;
+      const hh = closed ? 3 : Math.max(3, 10 * (1 - lid));
+      const eye: Rect[] = [{ x: lx + 5, y: ly + (closed ? 11 : 5 + (10 - hh) / 2), w: 10, h: hh, k: 'k' }];
+      const glint: Rect[] = a.mono ? [] : [{ x: lx + 3, y: ly + 6, w: 2, h: 4, k: 'w', opacity: 0.9 }];
+      // Manche : quatre tronçons jointifs en diagonale, le dernier plus épais (la poignée).
+      const handle: Rect[] = [0, 1, 2, 3].map((i) => ({
+        x: lx + 17 + 3 * i,
+        y: ly + 17 + 3 * i,
+        w: i === 3 ? 4 : 3,
+        h: i === 3 ? 4 : 3,
+        k: 'i',
+      }));
+      return { head: [layer(handle), layer([...glass, ...eye, ...glint])], ground: [] };
+    }
+    case 'laptop-side': {
+      // L'ordinateur du GIF officiel, posé au sol et vu de profil : un socle,
+      // un écran incliné vers Clawd (qui se tourne de 3/4 pour taper dessus,
+      // cf. clawd.ts). Un simple trait, comme dans le GIF : encre sur la dalle.
+      const x = QUARTER.laptop, g = A.ground;
+      const base: Rect = { x, y: g - 3, w: 22, h: 3, k: 'G' };
+      const screen: Rect[] = [0, 1, 2, 3, 4].map((i) => ({ x: x + 19 + 3 * i, y: g - 6 - 3 * i, w: 4, h: 4, k: 'G' }));
+      return { head: [], ground: [layer([base, ...screen], O_THIN)] };
     }
     case 'ball':
       return { head: [], ground: [layer(bitmap(BALL, A.handR - 3, A.ground - 14, 2))] };
@@ -161,6 +224,13 @@ const CONE = ['....y....', '...yyy...', '...yry...', '..yyyyy..', '..yrrry..', '
 const Z = ['LLLL', '..L.', '.L..', 'LLLL'];
 const SUN = ['.yyyy.', 'yyyyyy', 'yyyyyy', 'yyyyyy', 'yyyyyy', '.yyyy.'];
 const NOTE = ['..LL', '..LL', '..L.', 'LLL.', 'LLL.'];
+/** Mots de la bulle de parole : [x, y, largeur] relatifs à la bulle, dans l'ordre d'écriture. */
+const SPEECH_WORDS = [
+  [5, 5, 9],
+  [16, 5, 9],
+  [5, 11, 6],
+  [13, 11, 11],
+] as const;
 const BULB = ['..yyy..', '.yyyyy.', 'yywyyyy', 'ywyyyyy', 'yyyyyyy', '.yyyyy.', '..ggg..', '..GGG..'];
 
 /** Chapeaux et objets au-dessus de la tête (coordonnées : tête en haut à y = A.top). */
@@ -179,6 +249,18 @@ function overhead(kind: ClawdOverhead | undefined, mode: Mode, f: IdleFrame): La
       const antenna: Rect[] = [{ x: cx - 1, y: top - 20, w: 2, h: 4, k: 'G' }];
       const spark = bitmap(a.frame(2, 2) ? SPARK_B : SPARK_A, cx - 3, top - 27, 1);
       return [layer(hat), layer([...antenna, ...spark], O_THIN)];
+    }
+    case 'detective': {
+      // Chapeau de détective (sticker officiel « loupe ») : calotte pincée et
+      // bord sombres, ruban brun (blanc sur la dalle).
+      const hat: Rect[] = [
+        { x: cx - 11, y: top - 16, w: 9, h: 3, k: 'd' }, // calotte pincée : deux bosses
+        { x: cx + 2, y: top - 16, w: 9, h: 3, k: 'd' },
+        { x: cx - 13, y: top - 13, w: 26, h: 6, k: 'd' },
+        { x: cx - 13, y: top - 7, w: 26, h: 3, k: 'h' }, // ruban
+        { x: cx - 22, y: top - 4, w: 44, h: 4, k: 'd' }, // bord
+      ];
+      return [layer(hat)];
     }
     case 'party': {
       const hop = a.frame(2, 2) ? -2 : 0; // le pompon sautille
@@ -283,17 +365,40 @@ function overhead(kind: ClawdOverhead | undefined, mode: Mode, f: IdleFrame): La
       return [layer(bulb), layer(glow, O_THIN)];
     }
     case 'bubble': {
-      // Bulle de pensée : les points apparaissent un à un (« Claude réfléchit… »).
-      const x = 84, y = 11; // assez bas pour garder l'anneau N&B dans le cadre en plein saut
+      // Bulle de PENSÉE (comme le sticker officiel) : ronde, reliée à la tête
+      // par une petite bulle détachée — rien à voir avec la bulle de parole,
+      // rectangulaire et pointue. Les points y apparaissent un à un
+      // (« Claude réfléchit… »). Assez bas pour garder l'anneau N&B dans le
+      // cadre en plein saut.
+      const x = 84, y = 7;
       const bubble: Rect[] = [
-        { x: x + 2, y, w: 24, h: 16, k: 'w' },
-        { x, y: y + 2, w: 28, h: 12, k: 'w' },
-        { x: x + 2, y: y + 16, w: 5, h: 4, k: 'w' }, // queue vers la tête
-        { x, y: y + 20, w: 3, h: 3, k: 'w' },
+        { x: x + 6, y, w: 16, h: 16, k: 'w' },
+        { x: x + 2, y: y + 2, w: 24, h: 12, k: 'w' },
+        { x, y: y + 5, w: 28, h: 6, k: 'w' },
+      ];
+      // Petite bulle à l'écart (5 px d'air : les deux anneaux N&B ne se touchent pas).
+      const puff: Rect[] = [
+        { x: x + 5, y: y + 21, w: 5, h: 5, k: 'w' },
+        { x: x + 4, y: y + 22, w: 7, h: 3, k: 'w' },
       ];
       const shown = [1, 2, 3, 0][a.frame(4, 1)];
       const dots: Rect[] = [0, 1, 2].slice(0, shown).map((i) => ({ x: x + 6 + i * 7, y: y + 7, w: 3, h: 3, k: 'k' }));
-      return [layer([...bubble, ...dots])];
+      return [layer([...bubble, ...dots], O_PUFF), layer(puff, O_PUFF)];
+    }
+    case 'speech': {
+      // Bulle de parole, queue pointue vers Clawd : les mots s'y écrivent un à
+      // un sur deux lignes, puis on recommence (dalle : un mot par seconde).
+      const x = 82, y = 9;
+      const bubble: Rect[] = [
+        { x: x + 2, y, w: 26, h: 18, k: 'w' },
+        { x, y: y + 2, w: 30, h: 14, k: 'w' },
+        { x: x + 4, y: y + 18, w: 6, h: 2, k: 'w' }, // queue
+        { x: x + 2, y: y + 20, w: 4, h: 2, k: 'w' },
+        { x, y: y + 22, w: 2, h: 2, k: 'w' },
+      ];
+      const shown = (a.mono ? a.frame(4, 1) : a.frame(4, 2)) + 1;
+      const words: Rect[] = SPEECH_WORDS.slice(0, shown).map(([dx, dy, w]) => ({ x: x + dx, y: y + dy, w, h: 2, k: 'k' }));
+      return [layer([...bubble, ...words])];
     }
     default:
       return [];
@@ -303,11 +408,11 @@ function overhead(kind: ClawdOverhead | undefined, mode: Mode, f: IdleFrame): La
 /** Tous les accessoires d'un look pour une image de la couche idle. `armR` =
  * décalage de la main droite (les objets tenus suivent le bras). */
 export function propLayers(
-  look: { accessory?: ClawdAccessory; overhead?: ClawdOverhead },
+  look: { accessory?: ClawdAccessory; overhead?: ClawdOverhead; eyes?: ClawdEyes },
   mode: Mode,
   f: IdleFrame,
   armR: number,
 ): Props {
-  const acc = accessory(look.accessory, mode, f, armR);
-  return { head: [...overhead(look.overhead, mode, f), ...acc.head], ground: acc.ground };
+  const acc = accessory(look.accessory, mode, f, armR, look.eyes);
+  return { head: acc.head, hat: overhead(look.overhead, mode, f), ground: acc.ground };
 }

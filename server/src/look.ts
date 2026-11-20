@@ -4,9 +4,19 @@
  * vectoriel live). Ne rien importer ici qui ne tourne pas dans un navigateur.
  */
 
-export type ClawdEyes = 'square' | 'happy' | 'sleep' | 'wink' | 'shades' | 'cross';
-export type ClawdMouth = 'none' | 'line' | 'open' | 'kiss';
-export type ClawdAccessory = 'none' | 'laptop' | 'coffee' | 'ball' | 'wand' | 'heart' | 'skateboard' | 'flag';
+export type ClawdEyes = 'square' | 'happy' | 'sleep' | 'wink' | 'peer' | 'shades' | 'cross';
+export type ClawdMouth = 'none' | 'line' | 'open' | 'kiss' | 'talk';
+export type ClawdAccessory =
+  | 'none'
+  | 'laptop'
+  | 'laptop-side'
+  | 'magnifier'
+  | 'coffee'
+  | 'ball'
+  | 'wand'
+  | 'heart'
+  | 'skateboard'
+  | 'flag';
 export type ClawdOverhead =
   | 'none'
   | 'party'
@@ -17,9 +27,21 @@ export type ClawdOverhead =
   | 'headphones'
   | 'hardhat'
   | 'lightbulb'
-  | 'bubble';
+  | 'bubble'
+  | 'speech'
+  | 'detective';
 /** Animation idle de la pose (cf. idle.ts) — tourne en continu, sans pause. */
-export type ClawdMotion = 'idle' | 'bounce' | 'sway' | 'nervous' | 'shake' | 'sleep' | 'none';
+export type ClawdMotion =
+  | 'idle'
+  | 'think'
+  | 'type'
+  | 'search'
+  | 'bounce'
+  | 'sway'
+  | 'nervous'
+  | 'shake'
+  | 'sleep'
+  | 'none';
 
 /** Le « look » d'une pose : les pièces qui composent son dessin et son animation.
  * Une pose = un jeu de canaux sur les mêmes pièces (façon blobatar), pas un dessin à part. */
@@ -44,13 +66,16 @@ export const LOOK_PARTS = {
     happy: 'Heureux',
     sleep: 'Fermés',
     wink: "Clin d'œil",
+    peer: 'Un œil plissé',
     shades: 'Lunettes noires',
     cross: 'Croix',
   },
-  mouth: { none: 'Aucune', line: 'Trait', open: 'Ouverte', kiss: 'Bisou' },
+  mouth: { none: 'Aucune', line: 'Trait', open: 'Ouverte', kiss: 'Bisou', talk: 'Parle' },
   accessory: {
     none: 'Aucun',
     laptop: 'Ordinateur',
+    'laptop-side': 'Ordinateur de profil (de 3/4)',
+    magnifier: 'Loupe (de 3/4)',
     coffee: 'Café',
     ball: 'Ballon',
     wand: 'Baguette',
@@ -62,16 +87,21 @@ export const LOOK_PARTS = {
     none: 'Rien',
     party: 'Chapeau de fête',
     'sparkle-hat': 'Chapeau magique',
+    detective: 'Chapeau de détective',
     zzz: 'Zzz',
     sun: 'Soleil',
     umbrella: 'Parapluie',
     headphones: 'Casque audio',
     hardhat: 'Casque de chantier',
     lightbulb: 'Ampoule',
-    bubble: 'Bulle « … »',
+    bubble: 'Bulle de pensée « … »',
+    speech: 'Bulle de parole',
   },
   motion: {
     idle: 'Respire',
+    think: 'Pensif',
+    type: 'Tape au clavier',
+    search: 'Cherche',
     bounce: 'Sautille',
     sway: 'Se dandine',
     nervous: 'Nerveux',

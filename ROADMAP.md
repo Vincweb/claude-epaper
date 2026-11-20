@@ -14,6 +14,7 @@
 - **Clawd web live** : dessin partagé serveur ↔ web, rendu 60 img/s, regard qui suit le pointeur, en phase avec la dalle.
 - **Clawd officiel en pixel art** : grille des GIF officiels (corps 8×6, yeux 1×1, 4 pattes), contour sticker blanc (web) / blanc cerné de noir façon Tamagotchi (dalle), expressions minimalistes, accessoires en pixel art + drapeau à damier, bulle « … », casque audio, casque de chantier, ampoule.
 - **Galerie Humeurs** : deux volets e-paper (N&B) / web (couleur) ; par pose → **générer** (éditeur de look : yeux, bouche, accessoire, chapeau, animation, 🎲), télécharger, réinitialiser, **renommer**, **ajouter** (rotation, tête tirée du nom) et **retirer/supprimer** (rotation seulement).
+- **Humeurs par défaut (0.21)**, d'après les visuels officiels : **Réfléchit** (bulle de pensée ronde, yeux levés), **Recherche** (le sticker détective : chapeau, œil plissé, loupe qui grossit l'autre œil et suit le regard), **Travaille** (Clawd de 3/4 qui tape sur son ordinateur de profil, comme le GIF Claude Code), **Parle** (bulle de parole qui s'écrit, bouche qui bouge), **Terminé** (drapeau à damier) et **Pause café** (sticker de la tasse) — clés stables `think` / `search` / `work` / `talk` / `done` / `coffee`, semées une fois chacune dans la rotation, supprimables et remettables. Nouvelles pièces : vue de 3/4 (flanc tramé sur la dalle), ordinateur de profil, loupe, chapeau de détective, bulle de parole, bulle de pensée redessinée, yeux « Un œil plissé », bouche « Parle », animations « Pensif », « Tape au clavier » et « Cherche ».
 - **Rendu e-paper** : dalle 2,13" unique, orientations **horizontale** (250×122) et **verticale** (122×250), carré mascotte 118×118 affiché 1:1, point online **clignotant** (1 s). Interface retravaillée pour la lisibilité : texte Tiny5 uniquement à sa taille nette (×2), gros pourcentages en chiffres LCD, reset avec icône horloge, stats en icônes (♥ joie, 🍎 repu), « -- » + « HORS LIGNE » sans données.
 - **Boucle Python** `epaper_push.py` : cadence 1 s alignée sur l'horloge (animations fluides), refresh partiel type Bjorn + complet périodique (anti-ghosting).
 - **Installation native packagée** : `Makefile` (install/run/update/services) + unités `systemd` + auto-update depuis le dashboard.
@@ -52,6 +53,13 @@ session tourne quelque part, réveil, XP/stats).
 - **Serveur** : endpoint d'ingestion → alimente le poller (marquer `lastActivityAt`,
   forcer temporairement une pose, incrémenter l'XP…), sans casser la source de vérité
   unique.
+- **Étape 2 des humeurs par défaut** (l'étape 1 est faite : les six clés
+  existent) : mapping hooks → humeur, par ex. `UserPromptSubmit` → **Réfléchit**,
+  `PreToolUse` Read/Grep/Glob/WebSearch/WebFetch → **Recherche**, Edit/Write/Bash →
+  **Travaille**, `Notification` (Claude attend ta réponse) → **Parle**, `Stop` (tâche
+  finie) → **Terminé**, courte inactivité → **Pause café** (avant Dodo) ; pose tenue
+  quelques minutes puis retour à la rotation. Si l'humeur a été supprimée,
+  retomber sur son look dessiné (`DEFAULT_MOODS`).
 - **À creuser** : quels events (confidentialité — n'envoyer que des **signaux**, jamais
   le contenu des prompts), throttling, mapping event → pose, découverte du serveur
   (IP fixe / mDNS), file d'attente si le serveur est hors-ligne.
@@ -68,5 +76,5 @@ session tourne quelque part, réveil, XP/stats).
 - [ ] Multi-comptes (basculer entre plusieurs credentials).
 - [ ] Éditeur pixel art intégré (dessiner une pose directement dans la galerie).
 - [ ] **Morph entre poses** (blobatar) : quelques images de transition quand la pose change (ex. Tranquille → Stressé) plutôt qu'une coupe sèche.
-- [ ] Plus d'animations : marcher (pattes alternées), se tourner de 3/4 (comme les GIF officiels), agiter un drapeau, s'étirer ; extras animés (ballon qui roule, roues du skate).
-- [ ] Autres accessoires des stickers : chapeau de détective + loupe, cerf-volant, bulle, lunettes + livre, pioche.
+- [ ] Plus d'animations : marcher (pattes alternées), se tourner de 3/4 en cours d'animation (la vue 3/4 existe, cf. « Travaille »), agiter un drapeau, s'étirer ; extras animés (ballon qui roule, roues du skate).
+- [ ] Autres accessoires des stickers : cerf-volant, lunettes + livre, pioche (loupe, chapeau de détective et bulle de parole : faits).

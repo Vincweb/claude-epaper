@@ -50,6 +50,8 @@ const PATHS = {
   pencil: <path d="M14.5 5.5l4 4M4 20l1-4.5L15.8 4.7a1.8 1.8 0 0 1 2.5 0l1 1a1.8 1.8 0 0 1 0 2.5L8.5 19z" />,
   // Fermer.
   close: <path d="M6 6l12 12M18 6L6 18" />,
+  // Remettre (retour en arrière) : flèche qui revient.
+  undo: <path d="M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />,
   // Dé (au hasard).
   dice: (
     <>

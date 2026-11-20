@@ -29,7 +29,10 @@ import {
   deleteLook,
   findPose,
   hasLookOverride,
+  isDefaultMood,
+  missingDefaultMoods,
   renamePose,
+  restoreDefaultMoods,
   saveLook,
 } from '../poses.js';
 import {
@@ -218,13 +221,16 @@ apiRouter.get('/poses', requireAuth, (_req, res) => {
       key: p.key,
       title: p.title,
       special: specialKeys.has(p.key),
-      userAdded: customKeys.has(p.key), // humeur perso (rotation, supprimable)
+      userAdded: customKeys.has(p.key), // humeur de rotation (supprimable)
+      builtin: isDefaultMood(p.key), // humeur par défaut (DEFAULT_MOODS)
       look: sanitizeLook(p),
       lookCustom: hasLookOverride(p.key), // look composé dans l'éditeur
       epaper: poseAssetInfo('epaper', p),
       web: poseAssetInfo('web', p),
     })),
     parts: LOOK_PARTS,
+    // Humeurs par défaut supprimées, que la galerie propose de remettre.
+    missingDefaults: missingDefaultMoods().map((p) => ({ key: p.key, title: p.title })),
   });
 });
 
@@ -255,6 +261,13 @@ apiRouter.post('/poses', requireAuth, (req, res) => {
   }
   poller.refresh();
   res.json({ ok: true, pose });
+});
+
+/** Remet en rotation les humeurs par défaut supprimées (nom et look d'origine). */
+apiRouter.post('/poses/defaults', requireAuth, (_req, res) => {
+  const restored = restoreDefaultMoods();
+  poller.refresh();
+  res.json({ ok: true, restored: restored.map((p) => p.key) });
 });
 
 /** Renomme une humeur (spéciale de base ou personnalisée). */

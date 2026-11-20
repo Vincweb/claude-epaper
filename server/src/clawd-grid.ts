@@ -25,3 +25,13 @@ export const ANCHORS = {
   flagHand: { x: BX + 6 * C, y: BY - C }, // main levée (drapeau) : au-dessus de la tête
   ground: BY + 8 * C, // sol, sous les pattes (96)
 } as const;
+
+/** Clawd tourné de 3/4 vers la droite, comme dans le GIF officiel où il
+ * travaille sur son ordinateur : corps plus trapu de 8×5 cellules (flanc 2 +
+ * face 6), les deux bras côté droit, l'ordinateur de profil posé au sol devant
+ * lui. Décalé à gauche pour laisser la place à l'ordinateur. */
+export const QUARTER = {
+  x: 14, // flanc gauche du corps
+  top: BY + 8 * C - 10 - 5 * C, // haut de la tête (51) : pattes visibles sur 10 px
+  laptop: 74, // début du socle de l'ordinateur
+} as const;

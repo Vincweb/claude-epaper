@@ -48,14 +48,20 @@ Le tout est incarné par **Clawd**, la mascotte crabe de Claude Code, qui change
 <div align="center"><img src="docs/mascot-poses.png" width="760" alt="Les poses de Clawd" /></div>
 
 Clawd ne se contente pas d'afficher un pourcentage : il **vit**. Sa pose est
-choisie automatiquement selon le contexte (jamais selon le stress de la limite) :
+choisie automatiquement selon le contexte :
 
-- 🔄 **Rotation** — il change de pose au fil de la journée (intervalle réglable).
-- ☕ **Pause café** — uniquement le matin.
+- 🔄 **Rotation** — il change d'humeur au fil de la journée (intervalle réglable).
+  Six humeurs sont fournies d'office, ce que fait Claude, d'après les visuels
+  officiels : 💭 **Réfléchit** (bulle de pensée, yeux levés), 🔍 **Recherche**
+  (en détective : chapeau, œil plissé, loupe qui grossit l'autre œil),
+  💻 **Travaille** (tourné de 3/4, il tape sur son ordinateur posé au sol),
+  💬 **Parle** (bulle qui s'écrit, bouche qui bouge), 🏁 **Terminé** (drapeau à
+  damier) et ☕ **Pause café**. Ajoute les tiennes dans la galerie ; celles par
+  défaut se renomment, se modifient, se suppriment… et se remettent.
+- 😰 **Stress** — sous pression → stressé → cramé, selon la jauge la plus remplie.
 - 😴 **Dodo** — la nuit, ou après un moment sans activité.
 - 🎂 **Anniversaire** — la pose spéciale le jour J (date en config).
-- ☀️/☔ **Au soleil / sous la pluie**, 😘 **bisou**, 🪄 **magie**… au gré de la rotation.
-- 🎲 **Bouton shuffle** — force une pose au hasard depuis le dashboard.
+- 🎲 **Bouton shuffle** — force une humeur au hasard depuis le dashboard.
 
 La pose est calculée **côté serveur** : l'écran web et l'e-paper affichent donc
 toujours exactement la même mascotte (en couleur sur le web, en line-art N&B sur l'e-ink).
