@@ -135,9 +135,15 @@ affichent toujours la même chose (pose, niveau, stats).
   (intervalle 30 s–1 h, seuils 1-100 remis dans l'ordre) et ignore
   `usageXp`/`bornAt` (gérés par le serveur).
 - `routes/api.ts` : endpoints (voir ci-dessous).
-- Web : `App.tsx` gère l'auth (Setup/Login) puis le `Layout` routé (onglets en
-  bas sur mobile, pages secondaires en `lazy`, `ErrorBoundary`, état du flux SSE
-  `live`) ; pages dans `web/src/pages/` (`ScreenPage`, `EpaperPage` + réglages
+- Web : `App.tsx` gère l'auth (Setup/Login) puis le `Layout` routé (pages
+  secondaires en `lazy`, `ErrorBoundary`, état du flux SSE `live`).
+  **Navigation** : barre d'onglets flottante en verre (`.glass`) UNIQUEMENT
+  dans l'app installée (PWA) ; onglets dans l'en-tête dans un navigateur
+  (ordinateur et mobile). `lib/pwa.ts` pose la classe `pwa` sur `<html>`
+  (variante Tailwind `pwa:`) et bloque le zoom en PWA seulement ; barre d'état
+  iOS `black-translucent` → marges `safe-area`. Icônes au trait maison
+  (`components/Icon.tsx`), pas d'emoji dans l'interface. Modales = feuille qui
+  monte du bas sur mobile (pied d'actions fixe) ; pages dans `web/src/pages/` (`ScreenPage`, `EpaperPage` + réglages
   de la dalle, `HumeursPage` + réglages de Clawd, `ConfigPage` = sections de
   `pages/config/`). Chaque section enregistre **ses seuls champs**
   (`useConfigDraft`, `components/ui.tsx`). Couleurs = jetons `@theme`

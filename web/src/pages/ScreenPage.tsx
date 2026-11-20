@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../App';
 import { ClawdLive } from '../components/ClawdLive';
+import { Icon } from '../components/Icon';
 import { Gauge } from '../components/Gauge';
 import { TamagotchiStats } from '../components/TamagotchiStats';
 import { StatsModal } from '../components/StatsModal';
@@ -61,9 +62,9 @@ export function ScreenPage() {
             disabled={shuffling}
             title="Changer d'humeur"
             aria-label="Changer d'humeur (au hasard)"
-            className="rounded-full bg-white/10 px-3 py-1 text-sm hover:bg-white/20 disabled:opacity-50"
+            className="grid size-8 place-items-center rounded-full bg-white/10 text-white/80 hover:bg-white/20 disabled:opacity-50"
           >
-            🎲
+            <Icon name="dice" className="size-[18px]" />
           </button>
         </div>
         {state?.poseManual && <span className="mt-1 text-[11px] text-white/55">humeur choisie manuellement</span>}

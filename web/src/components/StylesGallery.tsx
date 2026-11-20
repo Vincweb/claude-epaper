@@ -280,7 +280,7 @@ export function StylesGallery() {
 
       <h3 className="mb-1 text-sm font-semibold text-white/80">En rotation</h3>
       <p className="mb-3 text-xs text-white/55">
-        Tes humeurs à toi, choisies au fil de la journée (et via 🎲). Ajoute-les ici, renomme-les,
+        Tes humeurs à toi, choisies au fil de la journée (et via le dé de l’écran principal). Ajoute-les ici, renomme-les,
         génère leur look ou supprime-les. {rotation.length === 0 && 'Aucune pour l’instant — commence par en ajouter une.'}
       </p>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

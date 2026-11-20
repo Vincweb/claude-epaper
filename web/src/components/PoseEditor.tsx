@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { posePreviewUrl, savePoseLook, type Look, type LookPart, type LookParts, type PoseInfo } from '../api';
 import { ClawdLive } from './ClawdLive';
+import { Icon } from './Icon';
 import { Modal } from './Modal';
 
 const PART_LABELS: Record<LookPart, string> = {
@@ -63,73 +64,79 @@ export function PoseEditor({
     }
   };
 
-  return (
-    <Modal title={`Modifier le look de « ${pose.title} »`} onClose={onClose} className="max-w-2xl" z="z-20">
+  const footer = (
+    <div className="flex items-center gap-2">
+      <button
+        onClick={() => setLook(randomLook(parts))}
+        aria-label="Look au hasard"
+        title="Look au hasard"
+        className="grid size-11 shrink-0 place-items-center rounded-xl bg-white/10 text-white/80 hover:bg-white/20 sm:size-10"
+      >
+        <Icon name="dice" className="size-5" />
+      </button>
+      <span className="flex-1" />
+      <button onClick={onClose} className="rounded-xl bg-white/10 px-4 py-3 text-sm hover:bg-white/20 sm:py-2">
+        Annuler
+      </button>
+      <button
+        onClick={() => void save()}
+        disabled={busy}
+        className="rounded-xl bg-accent px-5 py-3 text-sm font-medium text-black hover:bg-accent-soft disabled:opacity-40 sm:py-2"
+      >
+        {busy ? 'Enregistrement…' : 'Enregistrer'}
+      </button>
+    </div>
+  );
 
-        <div className="mb-4 flex flex-wrap items-end justify-center gap-6">
-          <figure className="flex flex-col items-center gap-1">
-            <div className="rounded-xl bg-white p-2">
+  return (
+    <Modal title={pose.title} onClose={onClose} className="sm:max-w-2xl" z="z-30" footer={footer}>
+      {/* Aperçus collés en haut : on voit le résultat pendant qu'on choisit les pièces. */}
+      <div className="sticky top-0 z-10 -mx-5 mb-3 bg-panel/95 px-5 pb-3 backdrop-blur sm:-mx-6 sm:px-6">
+        <div className="grid grid-cols-2 gap-3 sm:gap-6">
+          <figure className="flex flex-col items-center gap-1.5">
+            <div className="grid aspect-square w-full max-w-[220px] place-items-center rounded-2xl bg-white p-2">
               <img
                 src={posePreviewUrl('epaper', look)}
                 alt="Aperçu e-paper"
-                className="h-[236px] w-[236px]"
+                className="size-full"
                 style={{ imageRendering: 'pixelated' }}
               />
             </div>
             <figcaption className="text-[11px] text-white/55">E-paper · 1 image/s</figcaption>
           </figure>
-          <figure className="flex flex-col items-center gap-1">
-            <div className="rounded-xl bg-white/[0.04] p-2">
-              <ClawdLive look={look} size={236} title="Aperçu web" gaze />
+          <figure className="flex flex-col items-center gap-1.5">
+            <div className="grid aspect-square w-full max-w-[220px] place-items-center rounded-2xl bg-white/[0.05] p-2">
+              <ClawdLive look={look} size={220} className="size-full" title="Aperçu web" gaze />
             </div>
             <figcaption className="text-[11px] text-white/55">Web · en direct</figcaption>
           </figure>
         </div>
+      </div>
 
-        <div className="space-y-3">
-          {PART_ORDER.map((part) => (
-            <div key={part}>
-              <div className="mb-1 text-xs font-medium text-white/70">{PART_LABELS[part]}</div>
-              <div className="flex flex-wrap gap-1.5">
-                {Object.entries(parts[part]).map(([value, label]) => (
-                  <button
-                    key={value}
-                    onClick={() => setLook((l) => ({ ...l, [part]: value }))}
-                    aria-pressed={look[part] === value}
-                    className={`rounded-full px-3 py-1 text-xs ${
-                      look[part] === value ? 'bg-accent text-black' : 'bg-white/10 hover:bg-white/20'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+      <div className="space-y-4">
+        {PART_ORDER.map((part) => (
+          <fieldset key={part}>
+            <legend className="mb-1.5 text-xs font-medium text-white/70">{PART_LABELS[part]}</legend>
+            {/* Mobile : une ligne qui défile au doigt ; ordinateur : pastilles sur plusieurs lignes. */}
+            <div className="-mx-5 flex snap-x gap-1.5 overflow-x-auto px-5 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
+              {Object.entries(parts[part]).map(([value, label]) => (
+                <button
+                  key={value}
+                  onClick={() => setLook((l) => ({ ...l, [part]: value }))}
+                  aria-pressed={look[part] === value}
+                  className={`shrink-0 snap-start whitespace-nowrap rounded-full px-3.5 py-2 text-[13px] transition-colors sm:py-1 sm:text-xs ${
+                    look[part] === value ? 'bg-accent text-black' : 'bg-white/[0.08] text-white/85 hover:bg-white/15'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
-          ))}
-        </div>
+          </fieldset>
+        ))}
+      </div>
 
-        {error && <p className="mt-2 text-xs text-bad">{error}</p>}
-
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
-          <button
-            onClick={() => setLook(randomLook(parts))}
-            className="rounded-lg bg-white/10 px-3 py-1.5 text-xs hover:bg-white/20"
-          >
-            🎲 Au hasard
-          </button>
-          <div className="flex gap-2">
-            <button onClick={onClose} className="rounded-lg bg-white/10 px-4 py-1.5 text-xs hover:bg-white/20">
-              Annuler
-            </button>
-            <button
-              onClick={() => void save()}
-              disabled={busy}
-              className="rounded-lg bg-accent px-4 py-1.5 text-xs font-medium text-black hover:bg-accent-soft disabled:opacity-40"
-            >
-              {busy ? 'Enregistrement…' : 'Enregistrer le look'}
-            </button>
-          </div>
-        </div>
+      {error && <p className="mt-3 text-xs text-bad">{error}</p>}
     </Modal>
   );
 }

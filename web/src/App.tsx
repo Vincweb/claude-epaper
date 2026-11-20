@@ -2,6 +2,7 @@ import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState, ty
 import { NavLink, Outlet, Route, Routes, useLocation, useOutletContext } from 'react-router-dom';
 import { AuthScreen } from './components/AuthScreen';
 import { ClawdLive } from './components/ClawdLive';
+import { Icon, type IconName } from './components/Icon';
 import { ScreenPage } from './pages/ScreenPage';
 import { getAuthState, getConfig, logout, subscribeState, type AuthState } from './api';
 import { describeError, type AppConfig, type PollerState } from './lib/usage';
@@ -78,12 +79,82 @@ export default function App() {
   );
 }
 
-const NAV = [
-  { to: '/', label: 'Écran', icon: '◉', end: true },
-  { to: '/epaper', label: 'e-paper', icon: '▭', end: false },
-  { to: '/humeurs', label: 'Humeurs', icon: '☺', end: false },
-  { to: '/config', label: 'Config', icon: '⚙', end: false },
+const NAV: { to: string; label: string; icon: IconName; end: boolean }[] = [
+  { to: '/', label: 'Écran', icon: 'gauge', end: true },
+  { to: '/epaper', label: 'e-paper', icon: 'epaper', end: false },
+  { to: '/humeurs', label: 'Humeurs', icon: 'mood', end: false },
+  { to: '/config', label: 'Config', icon: 'sliders', end: false },
 ];
+
+/** Onglet actif (index dans NAV) d'après l'URL. */
+function activeIndex(pathname: string): number {
+  const i = NAV.findIndex((n) => (n.end ? pathname === n.to : pathname.startsWith(n.to)));
+  return i < 0 ? 0 : i;
+}
+
+/**
+ * Barre d'onglets flottante en verre, façon app native : UNIQUEMENT dans
+ * l'app installée (PWA). Une pastille glisse sous l'onglet actif.
+ */
+function TabBar({ pathname }: { pathname: string }) {
+  const active = activeIndex(pathname);
+  return (
+    <nav
+      aria-label="Navigation"
+      className="glass fixed inset-x-4 z-20 mx-auto hidden max-w-sm rounded-[28px] p-1.5 pwa:block"
+      style={{ bottom: 'max(14px, calc(env(safe-area-inset-bottom) - 6px))' }}
+    >
+      <div className="relative grid grid-cols-4">
+        <span
+          aria-hidden
+          className="absolute inset-y-0 left-0 w-1/4 rounded-[22px] bg-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-transform duration-300 ease-[cubic-bezier(.3,1.3,.5,1)]"
+          style={{ transform: `translateX(${active * 100}%)` }}
+        />
+        {NAV.map((n) => (
+          <NavLink
+            key={n.to}
+            to={n.to}
+            end={n.end}
+            className={({ isActive }) =>
+              `relative flex flex-col items-center gap-1 rounded-[22px] py-2 text-[10.5px] font-medium tracking-wide transition-colors ${
+                isActive ? 'text-accent-soft' : 'text-white/60 active:text-white/85'
+              }`
+            }
+          >
+            <Icon name={n.icon} className="size-[22px]" />
+            {n.label}
+          </NavLink>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
+/** Onglets du navigateur (ordinateur ET mobile) : jamais dans l'app installée. */
+function TopTabs() {
+  return (
+    <nav
+      aria-label="Navigation"
+      className="order-last flex w-full gap-1 rounded-xl bg-white/[0.06] p-1 text-sm sm:order-none sm:w-auto pwa:hidden"
+    >
+      {NAV.map((n) => (
+        <NavLink
+          key={n.to}
+          to={n.to}
+          end={n.end}
+          className={({ isActive }) =>
+            `flex flex-1 flex-col items-center justify-center gap-0.5 whitespace-nowrap rounded-lg px-2 py-1.5 text-[11px] transition-colors sm:flex-none sm:flex-row sm:gap-1.5 sm:px-3 sm:text-sm ${
+              isActive ? 'bg-white/12 text-white' : 'text-white/60 hover:bg-white/[0.06] hover:text-white/85'
+            }`
+          }
+        >
+          <Icon name={n.icon} className="size-4 shrink-0" />
+          <span>{n.label}</span>
+        </NavLink>
+      ))}
+    </nav>
+  );
+}
 
 /** Filet de sécurité : une page qui plante n'emporte pas toute l'app. */
 class ErrorBoundary extends Component<{ children: ReactNode; resetKey: string }, { error: Error | null }> {
@@ -155,39 +226,21 @@ function Layout({ onLogout }: { onLogout: () => void }) {
   };
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 pb-24 pt-6 sm:px-6 sm:py-8">
-      <header className="mb-6 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <h1 className="whitespace-nowrap text-xl font-semibold">Claude e-paper</h1>
+    <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 pb-8 pt-5 sm:px-6 sm:py-8 pwa:pb-32 pwa:pt-[calc(env(safe-area-inset-top)+0.5rem)]">
+      <header className="mb-6 flex flex-wrap items-center justify-between gap-x-3 gap-y-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <h1 className="truncate text-lg font-semibold tracking-tight sm:text-xl">Claude e-paper</h1>
           <StatusDot state={state} live={live} />
         </div>
-
-        <div className="flex items-center gap-2 text-sm">
-          {/* Desktop : onglets dans l'en-tête ; mobile : barre en bas de l'écran. */}
-          <nav aria-label="Navigation" className="hidden overflow-hidden rounded-lg bg-white/10 sm:flex">
-            {NAV.map((n) => (
-              <NavLink
-                key={n.to}
-                to={n.to}
-                end={n.end}
-                className={({ isActive }) => `px-3 py-1.5 ${isActive ? 'bg-accent text-black' : 'hover:bg-white/10'}`}
-              >
-                {n.label}
-              </NavLink>
-            ))}
-          </nav>
-          <button
-            onClick={doLogout}
-            className="shrink-0 rounded-lg bg-white/10 px-3 py-1.5 hover:bg-white/20"
-            title="Se déconnecter du dashboard"
-            aria-label="Se déconnecter du dashboard"
-          >
-            {/* Porte avec flèche sortante : « se déconnecter ». */}
-            <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
-            </svg>
-          </button>
-        </div>
+        <TopTabs />
+        <button
+          onClick={doLogout}
+          className="grid size-9 shrink-0 place-items-center rounded-full bg-white/[0.06] text-white/70 hover:bg-white/12 hover:text-white sm:order-last"
+          title="Se déconnecter du dashboard"
+          aria-label="Se déconnecter du dashboard"
+        >
+          <Icon name="logout" className="size-[18px]" />
+        </button>
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center gap-8">
@@ -202,27 +255,7 @@ function Layout({ onLogout }: { onLogout: () => void }) {
         <FooterStatus state={state} live={live} />
       </footer>
 
-      {/* Mobile : barre d'onglets fixe en bas, à portée de pouce. */}
-      <nav
-        aria-label="Navigation"
-        className="safe-bottom fixed inset-x-0 bottom-0 z-10 grid grid-cols-4 border-t border-white/10 bg-panel/95 backdrop-blur sm:hidden"
-      >
-        {NAV.map((n) => (
-          <NavLink
-            key={n.to}
-            to={n.to}
-            end={n.end}
-            className={({ isActive }) =>
-              `flex flex-col items-center gap-0.5 py-2 text-[11px] ${isActive ? 'text-accent' : 'text-white/60'}`
-            }
-          >
-            <span aria-hidden className="text-lg leading-none">
-              {n.icon}
-            </span>
-            {n.label}
-          </NavLink>
-        ))}
-      </nav>
+      <TabBar pathname={location.pathname} />
     </div>
   );
 }

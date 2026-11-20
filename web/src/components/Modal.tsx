@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { Icon } from './Icon';
 
 /**
  * Fenêtre modale accessible : `role="dialog"`, fermeture par Échap ou clic sur
@@ -11,6 +12,7 @@ export function Modal({
   children,
   className = 'max-w-md',
   z = 'z-30',
+  footer,
 }: {
   title: string;
   onClose: () => void;
@@ -18,6 +20,8 @@ export function Modal({
   /** Largeur max (classes Tailwind). */
   className?: string;
   z?: string;
+  /** Actions, toujours visibles en bas (hors de la zone qui défile). */
+  footer?: ReactNode;
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -62,25 +66,41 @@ export function Modal({
   }, []);
 
   return (
-    <div className={`fixed inset-0 ${z} flex items-center justify-center bg-black/60 p-4`} onClick={() => close.current()}>
+    // Mobile : feuille qui monte du bas (pleine largeur, poignée) ; ordinateur : fenêtre centrée.
+    <div
+      className={`fixed inset-0 ${z} flex items-end justify-center bg-black/60 backdrop-blur-[2px] sm:items-center sm:p-4`}
+      onClick={() => close.current()}
+    >
       <div
         ref={panel}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`max-h-[90vh] w-full overflow-y-auto rounded-2xl border border-white/10 bg-panel p-6 shadow-2xl ${className}`}
+        className={`flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[28px] border border-white/10 bg-panel shadow-2xl motion-safe:animate-[sheet-in_0.28s_cubic-bezier(.2,.9,.3,1)] sm:max-h-[90vh] sm:rounded-2xl sm:motion-safe:animate-none ${className}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 id={titleId} className="text-lg font-semibold">
+        <div aria-hidden className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-white/20 sm:hidden" />
+        <div className="flex shrink-0 items-center justify-between gap-3 px-5 pb-3 pt-3 sm:px-6 sm:pt-5">
+          <h2 id={titleId} className="min-w-0 truncate text-lg font-semibold">
             {title}
           </h2>
-          <button onClick={() => close.current()} aria-label="Fermer" className="rounded px-1 text-white/55 hover:text-white">
-            ✕
+          <button
+            onClick={() => close.current()}
+            aria-label="Fermer"
+            className="grid size-8 shrink-0 place-items-center rounded-full bg-white/[0.06] text-white/70 hover:bg-white/12 hover:text-white"
+          >
+            <Icon name="close" className="size-4" />
           </button>
         </div>
-        {children}
+        <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 sm:px-6 ${footer ? 'pb-4' : 'pb-[max(1.5rem,env(safe-area-inset-bottom))]'}`}>
+          {children}
+        </div>
+        {footer && (
+          <div className="shrink-0 border-t border-white/10 bg-panel px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pb-5">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );

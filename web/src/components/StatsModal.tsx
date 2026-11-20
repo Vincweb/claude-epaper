@@ -9,7 +9,7 @@ const RULES = [
 
 export function StatsModal({ onClose }: { onClose: () => void }) {
   return (
-    <Modal title="Les stats de Clawd" onClose={onClose} z="z-20">
+    <Modal title="Les stats de Clawd" onClose={onClose}>
         <div className="space-y-3">
           {RULES.map((r) => (
             <div key={r.label} className="flex gap-3">
