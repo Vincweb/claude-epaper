@@ -126,11 +126,12 @@ export interface Stat {
   value: number;
 }
 
-export const STAT_ICONS: Record<string, string> = {
-  energie: '⚡',
-  forme: '💪',
-  repu: '🍔',
-  bonheur: '😊',
+/** Icône au trait de chaque stat (cf. components/Icon.tsx). */
+export const STAT_ICONS: Record<string, 'bolt' | 'pulse' | 'apple' | 'mood'> = {
+  energie: 'bolt',
+  forme: 'pulse',
+  repu: 'apple',
+  bonheur: 'mood',
 };
 
 export function statColor(value: number): string {

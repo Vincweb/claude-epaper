@@ -52,7 +52,7 @@ function ConnectionStatus({
                   onLogout();
                 }}
                 disabled={busy}
-                className="rounded-lg bg-bad/20 px-2 py-1 text-bad-soft hover:bg-bad/30 disabled:opacity-50"
+                className="btn btn-sm bg-bad/20 text-bad-soft hover:bg-bad/30"
               >
                 Confirmer la déconnexion
               </button>
@@ -64,7 +64,7 @@ function ConnectionStatus({
             <button
               onClick={() => setConfirm(true)}
               disabled={busy}
-              className="rounded-lg bg-white/10 px-2 py-1 text-bad-soft hover:bg-white/20 disabled:opacity-50"
+              className="btn btn-sm btn-danger"
             >
               Se déconnecter
             </button>
@@ -72,9 +72,9 @@ function ConnectionStatus({
         </div>
       )}
 
-      {connected && error && <p className="rounded-lg border border-bad/40 bg-bad/10 p-2 text-bad-soft">{error}</p>}
+      {connected && error && <p className="rounded-xl border border-bad/40 bg-bad/10 px-3 py-2 text-bad-soft">{error}</p>}
       {connection.source === 'claude-code' && (
-        <p className="rounded-lg border border-warn/30 bg-warn/10 p-2 text-[11px] text-warn-soft">
+        <p className="rounded-xl border border-warn/30 bg-warn/10 px-3 py-2 text-[11px] text-warn-soft">
           Ces identifiants sont partagés avec un Claude Code : quand l'un les rafraîchit, l'autre est déconnecté.
           Connecte plutôt le dashboard à ton compte ci-dessous.
         </p>
@@ -179,7 +179,7 @@ export function ClaudeSection() {
     <Section title="Connexion à Claude" hint="Accès aux limites 5 h / 7 j de ton compte Claude.">
       <ConnectionStatus connection={connection} error={error} onLogout={logout} busy={busy} />
 
-      <div className="rounded-lg border border-accent/30 bg-accent/[0.06] p-3">
+      <div className="rounded-2xl border border-accent/25 bg-accent/[0.05] p-4">
         <div className="text-xs font-medium text-accent-soft">
           {connection?.source === 'dashboard' ? 'Reconnecter le compte' : 'Recommandé : connecter le dashboard à ton compte'}
         </div>
@@ -214,7 +214,7 @@ export function ClaudeSection() {
                   spellCheck={false}
                   disabled={!loginUrl}
                   className={`${fieldCls} font-mono`}
-                  placeholder={loginUrl ? 'code#…' : 'clique d’abord sur « Se connecter à Claude »'}
+                  placeholder={loginUrl ? 'Colle le code ici' : 'Disponible après l’étape 1'}
                   value={loginCode}
                   onChange={(e) => {
                     setLoginCode(e.target.value);
@@ -244,11 +244,11 @@ export function ClaudeSection() {
         </p>
       </div>
 
-      <details className="group rounded-lg border border-white/10 p-3">
+      <details className="group rounded-2xl border border-white/[0.08] p-4">
         <summary className="cursor-pointer select-none text-xs text-white/60 group-open:mb-3">
           Avancé — importer les credentials de Claude Code
         </summary>
-        <p className="mb-3 rounded-lg border border-warn/30 bg-warn/10 p-2 text-[11px] text-warn-soft">
+        <p className="mb-3 rounded-xl border border-warn/30 bg-warn/10 px-3 py-2 text-[11px] text-warn-soft">
           ⚠ Partager les credentials d'une machine où Claude Code est utilisé déconnectera l'une des deux : quand l'une
           rafraîchit le token, l'autre perd l'accès. Préfère la connexion ci-dessus. Importer remplace la connexion
           actuelle du dashboard.

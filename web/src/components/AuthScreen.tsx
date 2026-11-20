@@ -7,7 +7,7 @@ type Props = { configured: boolean; onAuthenticated: () => void };
 export function AuthScreen({ configured, onAuthenticated }: Props) {
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-panel p-6 shadow-2xl">
+      <div className="w-full max-w-md rounded-[1.5rem] border border-white/[0.08] bg-panel p-6 shadow-2xl">
         <div className="mb-4 flex flex-col items-center text-center">
           {/* Clawd « Tranquille » dessiné en direct : pas encore connecté, donc le look
               par défaut (la personnalisation de l'utilisateur n'est pas publique). */}
@@ -62,12 +62,12 @@ function Setup({ onAuthenticated }: { onAuthenticated: () => void }) {
             height={200}
           />
         )}
-        <div className="rounded-lg border border-white/15 bg-black/30 p-3 text-center font-mono text-lg tracking-widest">
+        <div className="rounded-xl border border-white/10 bg-black/25 p-3 text-center font-mono text-lg tracking-widest">
           {recovery.code}
         </div>
         <button
           onClick={() => navigator.clipboard?.writeText(recovery.code)}
-          className="w-full rounded-lg bg-white/10 py-2 text-sm hover:bg-white/20"
+          className="btn w-full py-2.5"
         >
           Copier le code
         </button>
@@ -83,7 +83,7 @@ function Setup({ onAuthenticated }: { onAuthenticated: () => void }) {
         <button
           disabled={!saved}
           onClick={onAuthenticated}
-          className="w-full rounded-lg bg-accent py-2 text-sm font-medium text-black disabled:opacity-40"
+          className="btn btn-primary w-full py-2.5"
         >
           Entrer dans le dashboard
         </button>
@@ -101,7 +101,7 @@ function Setup({ onAuthenticated }: { onAuthenticated: () => void }) {
       <button
         disabled={busy}
         onClick={create}
-        className="w-full rounded-lg bg-accent py-2.5 text-sm font-medium text-black disabled:opacity-50"
+        className="btn btn-primary w-full py-2.5"
       >
         {busy ? 'Création…' : 'Créer une passkey'}
       </button>
@@ -161,7 +161,7 @@ function Login({ onAuthenticated }: { onAuthenticated: () => void }) {
           <button
             disabled={busy}
             onClick={withPasskey}
-            className="w-full rounded-lg bg-accent py-2.5 text-sm font-medium text-black disabled:opacity-50"
+            className="btn btn-primary w-full py-2.5"
           >
             {busy ? 'Connexion…' : 'Se connecter avec la passkey'}
           </button>
@@ -178,12 +178,12 @@ function Login({ onAuthenticated }: { onAuthenticated: () => void }) {
             value={code}
             onChange={(e) => setCode(e.target.value)}
             placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX"
-            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-center font-mono tracking-widest"
+            className="field text-center font-mono tracking-widest"
           />
           <button
             disabled={busy || code.length < 5}
             onClick={withRecovery}
-            className="w-full rounded-lg bg-accent py-2.5 text-sm font-medium text-black disabled:opacity-50"
+            className="btn btn-primary w-full py-2.5"
           >
             {busy ? 'Vérification…' : 'Se connecter'}
           </button>

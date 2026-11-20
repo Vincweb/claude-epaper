@@ -11,6 +11,7 @@ import {
   type SpriteVariant,
 } from '../api';
 import { ClawdLive } from './ClawdLive';
+import { Icon } from './Icon';
 import { PoseEditor } from './PoseEditor';
 
 /** Déclencheurs des poses spéciales (informatif). */
@@ -89,7 +90,7 @@ function PoseCard({
   };
 
   return (
-    <div className="flex flex-col items-center rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+    <div className="card flex flex-col items-center p-3">
       <div className={`rounded-xl p-2 ${VARIANT_INFO[variant].frame}`}>
         {live ? (
           <ClawdLive look={pose.look} size={118} title={pose.title} />
@@ -117,7 +118,7 @@ function PoseCard({
                 setEditing(false);
               }
             }}
-            className="w-full rounded bg-white/10 px-2 py-0.5 text-center text-sm font-semibold focus:bg-white/15"
+            className="field py-1 text-center font-semibold"
           />
         ) : (
           <button
@@ -126,12 +127,14 @@ function PoseCard({
             aria-label={`Renommer « ${pose.title} »`}
             className="text-sm font-semibold hover:text-accent-soft"
           >
-            {pose.title} <span aria-hidden className="text-white/55">✎</span>
+            <span className="inline-flex items-center gap-1.5">
+              {pose.title} <Icon name="pencil" className="size-3.5 text-white/45" />
+            </span>
           </button>
         )}
         <div className="text-xs text-white/55">{POSE_DESC[pose.key] ?? 'humeur personnalisée'}</div>
         <div className="mt-1 flex flex-wrap items-center justify-center gap-1">
-          <span className="rounded-full bg-white/10 px-2 text-[10px] text-white/50">
+          <span className="rounded-full bg-white/[0.08] px-2 py-0.5 text-[11px] text-white/60">
             {live ? 'vectoriel animé' : info.animated ? 'GIF animé' : 'PNG'}
           </span>
           {pose.lookCustom && (
@@ -145,7 +148,7 @@ function PoseCard({
             onClick={onGenerate}
             disabled={busy}
             title="Composer le look (yeux, bouche, accessoires, animation)"
-            className="rounded-lg bg-accent/80 px-3 py-1 text-xs font-medium text-black hover:bg-accent-soft disabled:opacity-50"
+            className="btn btn-sm btn-primary"
           >
             Modifier le look
           </button>
@@ -153,7 +156,7 @@ function PoseCard({
         <a
           href={poseAssetUrl(variant, pose.key, bump)}
           download={`${pose.key}-${variant}.${ext}`}
-          className="rounded-lg bg-white/10 px-3 py-1 text-xs hover:bg-white/20"
+          className="btn btn-sm"
         >
           Télécharger
         </a>
@@ -162,7 +165,7 @@ function PoseCard({
             onClick={onReset}
             disabled={busy}
             title="Revenir au dessin d'origine"
-            className="rounded-lg bg-white/10 px-3 py-1 text-xs hover:bg-white/20 disabled:opacity-50"
+            className="btn btn-sm"
           >
             Réinitialiser
           </button>
@@ -171,7 +174,7 @@ function PoseCard({
           <button
             onClick={onRemove}
             disabled={busy}
-            className="rounded-lg bg-bad/15 px-3 py-1 text-xs text-bad-soft hover:bg-bad/25 disabled:opacity-50"
+            className="btn btn-sm btn-danger"
           >
             Supprimer
           </button>
@@ -204,7 +207,7 @@ function AddPoseCard({ onAdded }: { onAdded: () => void }) {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-3 text-center">
+    <div className="flex flex-col items-center justify-center rounded-[1.25rem] border border-dashed border-white/15 p-3 text-center">
       <div className="text-2xl text-white/55">＋</div>
       <div className="mb-2 text-sm font-semibold text-white/70">Nouvelle humeur</div>
       <div className="text-xs text-white/55">
@@ -216,12 +219,12 @@ function AddPoseCard({ onAdded }: { onAdded: () => void }) {
         placeholder="Nom de l'humeur"
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && void add()}
-        className="mt-3 w-full rounded-lg bg-white/10 px-2 py-1 text-center text-sm focus:bg-white/15"
+        className="field mt-3 text-center"
       />
       <button
         onClick={() => void add()}
         disabled={busy || !name.trim()}
-        className="mt-2 rounded-lg bg-accent px-4 py-1 text-xs font-medium text-black hover:bg-accent-soft disabled:opacity-40"
+        className="btn btn-sm btn-primary mt-2"
       >
         Ajouter
       </button>
@@ -255,21 +258,14 @@ export function StylesGallery() {
 
   return (
     <div className="w-full">
-      <p className="mb-3 text-center text-sm text-white/50">
-        Chaque pose est animée <strong>en continu</strong> : compose son look avec{' '}
-        <strong>Modifier le look</strong> (yeux, accessoires, animation).
-        La dalle lit l'animation à 1 image/seconde ; le web dessine Clawd en direct, en vectoriel
-        fluide.
-      </p>
-
       <div className="mb-1 flex justify-center">
-        <div className="flex overflow-hidden rounded-lg bg-white/10 text-xs">
+        <div className="segmented text-xs">
           {(['epaper', 'web'] as const).map((v) => (
             <button
               key={v}
               onClick={() => setVariant(v)}
               aria-pressed={variant === v}
-              className={`px-4 py-1.5 ${variant === v ? 'bg-accent text-black' : 'hover:bg-white/10'}`}
+              className="seg px-4"
             >
               {VARIANT_INFO[v].label}
             </button>

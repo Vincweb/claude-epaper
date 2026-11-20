@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAppData } from '../App';
 import { putConfig } from '../api';
 import { EpaperView } from '../components/EpaperView';
-import { Section } from '../components/ui';
+import { Section, Switch } from '../components/ui';
 import type { AppConfig } from '../lib/usage';
 
 /** Aperçu de la dalle + ses réglages (appliqués immédiatement). */
@@ -34,6 +34,10 @@ export function EpaperPage() {
 
   return (
     <div className="flex w-full flex-col items-center gap-6">
+      <div className="w-full">
+        <h2 className="mb-1 text-lg font-semibold">Dalle e-paper</h2>
+        <p className="text-xs text-white/55">L'image exacte envoyée à l'écran 2,13″, mise à jour chaque seconde.</p>
+      </div>
       <EpaperView layout={layout} online={online} />
 
       <div className="w-full max-w-md">
@@ -41,32 +45,31 @@ export function EpaperPage() {
           <fieldset disabled={!configReady || busy} className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <span className="text-sm">Orientation</span>
-              <div className="flex overflow-hidden rounded-lg bg-white/10 text-xs" role="radiogroup" aria-label="Orientation">
+              <div className="segmented text-xs" role="radiogroup" aria-label="Orientation">
                 {(['horizontal', 'vertical'] as const).map((l) => (
                   <button
                     key={l}
                     role="radio"
                     aria-checked={layout === l}
                     onClick={() => layout !== l && void apply({ epaperLayout: l })}
-                    className={`px-3 py-1.5 ${layout === l ? 'bg-accent text-black' : 'hover:bg-white/10'}`}
+                    className="seg"
                   >
                     {l === 'horizontal' ? 'Horizontale 250×122' : 'Verticale 122×250'}
                   </button>
                 ))}
               </div>
             </div>
-            <label className="flex items-center justify-between gap-3 text-sm">
+            <div className="flex items-center justify-between gap-3 text-sm">
               <span>
                 Rotation 180°
                 <span className="block text-[11px] text-white/55">Dalle montée à l'envers (l'aperçu reste à l'endroit).</span>
               </span>
-              <input
-                type="checkbox"
-                className="size-4 accent-accent"
+              <Switch
+                label="Rotation 180°"
                 checked={rotate === 180}
-                onChange={(e) => void apply({ epaperRotate: e.target.checked ? 180 : 0 })}
+                onChange={(on) => void apply({ epaperRotate: on ? 180 : 0 })}
               />
-            </label>
+            </div>
           </fieldset>
           {error && <p className="text-xs text-bad">Échec : {error}</p>}
         </Section>

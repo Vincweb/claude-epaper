@@ -1,6 +1,32 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { Icon } from './Icon';
 
+/*
+ * Verrou du défilement de la page sous une modale. `overflow: hidden` ne suffit
+ * pas sur iOS (Safari et PWA font quand même défiler le fond) : on fige le body
+ * en `position: fixed` à la position courante, puis on la restaure à la
+ * fermeture. Compteur : plusieurs modales empilées partagent le même verrou.
+ */
+let locks = 0;
+let savedY = 0;
+function lockScroll(): () => void {
+  if (locks++ === 0) {
+    savedY = window.scrollY;
+    const b = document.body.style;
+    b.position = 'fixed';
+    b.top = `-${savedY}px`;
+    b.left = '0';
+    b.right = '0';
+    b.overflow = 'hidden';
+  }
+  return () => {
+    if (--locks > 0) return;
+    const b = document.body.style;
+    b.position = b.top = b.left = b.right = b.overflow = '';
+    window.scrollTo(0, savedY);
+  };
+}
+
 /**
  * Fenêtre modale accessible : `role="dialog"`, fermeture par Échap ou clic sur
  * le fond, focus placé dans la fenêtre puis rendu à l'élément d'origine, et
@@ -28,6 +54,8 @@ export function Modal({
   // Toujours la dernière version de onClose, sans relancer l'effet.
   const close = useRef(onClose);
   close.current = onClose;
+
+  useEffect(() => lockScroll(), []);
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
@@ -61,7 +89,7 @@ export function Modal({
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('keydown', onKey);
-      previous?.focus?.();
+      previous?.focus?.({ preventScroll: true });
     };
   }, []);
 

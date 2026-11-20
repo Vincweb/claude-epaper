@@ -135,7 +135,7 @@ function TopTabs() {
   return (
     <nav
       aria-label="Navigation"
-      className="order-last flex w-full gap-1 rounded-xl bg-white/[0.06] p-1 text-sm sm:order-none sm:w-auto pwa:hidden"
+      className="segmented order-last w-full text-sm sm:order-none sm:w-auto pwa:hidden"
     >
       {NAV.map((n) => (
         <NavLink
@@ -168,12 +168,12 @@ class ErrorBoundary extends Component<{ children: ReactNode; resetKey: string },
   render() {
     if (!this.state.error) return this.props.children;
     return (
-      <div className="max-w-sm rounded-xl border border-bad/40 bg-bad/10 p-4 text-center text-sm">
+      <div className="max-w-sm rounded-[1.25rem] border border-bad/40 bg-bad/10 p-4 text-center text-sm">
         <p className="font-medium text-bad-soft">Cette page a rencontré une erreur.</p>
         <p className="mt-1 text-xs text-white/55">{this.state.error.message}</p>
         <button
           onClick={() => window.location.reload()}
-          className="mt-3 rounded-lg bg-white/10 px-3 py-1.5 text-xs hover:bg-white/20"
+          className="btn btn-sm mt-3"
         >
           Recharger
         </button>

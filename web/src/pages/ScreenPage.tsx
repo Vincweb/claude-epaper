@@ -56,13 +56,13 @@ export function ScreenPage() {
           <ClawdLive look={pose} size={240} className="size-[180px] sm:size-[240px]" title={pose.title} gaze />
         </div>
         <div className="mt-1 flex items-center gap-2">
-          <span className="rounded-full bg-white/10 px-4 py-1 text-sm font-medium text-white/80">{pose.title}</span>
+          <span className="rounded-full bg-white/[0.08] px-4 py-1.5 text-sm font-medium text-white/85">{pose.title}</span>
           <button
             onClick={doShuffle}
             disabled={shuffling}
             title="Changer d'humeur"
             aria-label="Changer d'humeur (au hasard)"
-            className="grid size-8 place-items-center rounded-full bg-white/10 text-white/80 hover:bg-white/20 disabled:opacity-50"
+            className="btn size-8 rounded-full p-0"
           >
             <Icon name="dice" className="size-[18px]" />
           </button>
@@ -71,7 +71,7 @@ export function ScreenPage() {
       </div>
 
       {!loading && !snap && (
-        <div className="w-full max-w-md rounded-xl border border-white/10 bg-black/20 p-4 text-center text-sm text-white/60">
+        <div className="card w-full max-w-md p-4 text-center text-sm text-white/65">
           {state?.lastError && state.lastError !== 'no credentials' ? (
             <>Pas de données : {describeError(state.lastError)}. </>
           ) : (

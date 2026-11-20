@@ -1,10 +1,11 @@
+import { Icon } from './Icon';
 import { Modal } from './Modal';
 
 const RULES = [
-  { icon: '⚡', label: 'Énergie', desc: "100 − utilisation de la fenêtre 5 h. Se vide quand tu consommes ton quota court terme, se recharge à chaque reset." },
-  { icon: '💪', label: 'Forme', desc: '100 − utilisation de la fenêtre 7 j. Reflète ta marge sur la semaine.' },
-  { icon: '🍔', label: 'Repu', desc: "Se vide avec l'inactivité : 100 quand tu viens de coder, ~0 après ~6 h sans activité détectée." },
-  { icon: '😊', label: 'Bonheur', desc: 'Moyenne des trois autres (énergie, forme, repu).' },
+  { icon: 'bolt' as const, label: 'Énergie', desc: "100 − utilisation de la fenêtre 5 h. Se vide quand tu consommes ton quota court terme, se recharge à chaque reset." },
+  { icon: 'pulse' as const, label: 'Forme', desc: '100 − utilisation de la fenêtre 7 j. Reflète ta marge sur la semaine.' },
+  { icon: 'apple' as const, label: 'Repu', desc: "Se vide avec l'inactivité : 100 quand tu viens de coder, ~0 après ~6 h sans activité détectée." },
+  { icon: 'mood' as const, label: 'Bonheur', desc: 'Moyenne des trois autres (énergie, forme, repu).' },
 ];
 
 export function StatsModal({ onClose }: { onClose: () => void }) {
@@ -13,7 +14,7 @@ export function StatsModal({ onClose }: { onClose: () => void }) {
         <div className="space-y-3">
           {RULES.map((r) => (
             <div key={r.label} className="flex gap-3">
-              <span className="w-5 text-center">{r.icon}</span>
+              <Icon name={r.icon} className="mt-0.5 size-[18px] shrink-0 text-white/70" />
               <div>
                 <div className="text-sm font-medium">{r.label}</div>
                 <div className="text-xs text-white/55">{r.desc}</div>

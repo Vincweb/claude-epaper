@@ -70,18 +70,18 @@ export function PoseEditor({
         onClick={() => setLook(randomLook(parts))}
         aria-label="Look au hasard"
         title="Look au hasard"
-        className="grid size-11 shrink-0 place-items-center rounded-xl bg-white/10 text-white/80 hover:bg-white/20 sm:size-10"
+        className="btn size-11 shrink-0 p-0 sm:size-10"
       >
         <Icon name="dice" className="size-5" />
       </button>
       <span className="flex-1" />
-      <button onClick={onClose} className="rounded-xl bg-white/10 px-4 py-3 text-sm hover:bg-white/20 sm:py-2">
+      <button onClick={onClose} className="btn px-4 py-3 sm:py-2">
         Annuler
       </button>
       <button
         onClick={() => void save()}
         disabled={busy}
-        className="rounded-xl bg-accent px-5 py-3 text-sm font-medium text-black hover:bg-accent-soft disabled:opacity-40 sm:py-2"
+        className="btn btn-primary px-5 py-3 sm:py-2"
       >
         {busy ? 'Enregistrement…' : 'Enregistrer'}
       </button>

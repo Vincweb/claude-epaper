@@ -37,6 +37,17 @@ const PATHS = {
   ),
   // Se déconnecter : porte + flèche sortante.
   logout: <path d="M9 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h3M15.5 16l4-4-4-4M19.5 12H9" />,
+  // Stats de Clawd.
+  bolt: <path d="M13 3L5 13.5h6L10 21l8-10.5h-6z" />,
+  pulse: <path d="M3 12h4l2.5-6 4 12 2.5-6H21" />,
+  apple: (
+    <>
+      <path d="M12 7.5c-1.3-1-3-1.4-4.6-.9C5.2 7.3 4 9.4 4 12c0 4 2.6 8 5 8 1.2 0 1.8-.6 3-.6s1.8.6 3 .6c2.4 0 5-4 5-8 0-2.6-1.2-4.7-3.4-5.4-1.6-.5-3.3-.1-4.6.9z" />
+      <path d="M12 7.5c0-1.8.8-3.3 2.5-4" />
+    </>
+  ),
+  // Renommer.
+  pencil: <path d="M14.5 5.5l4 4M4 20l1-4.5L15.8 4.7a1.8 1.8 0 0 1 2.5 0l1 1a1.8 1.8 0 0 1 0 2.5L8.5 19z" />,
   // Fermer.
   close: <path d="M6 6l12 12M18 6L6 18" />,
   // Dé (au hasard).

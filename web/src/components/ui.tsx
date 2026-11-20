@@ -5,10 +5,10 @@ import type { AppConfig } from '../lib/usage';
 
 /* Briques d'interface partagées par les pages de réglages. */
 
-export const fieldCls =
-  'w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm focus:border-accent/60 disabled:opacity-40';
-export const btnCls = 'rounded-lg bg-white/10 px-3 py-2 text-sm hover:bg-white/20 disabled:opacity-40';
-export const btnPrimaryCls = 'rounded-lg bg-accent px-3 py-2 text-sm font-medium text-black hover:brightness-110 disabled:opacity-40';
+// Briques définies une fois dans index.css (@utility) : field, btn, btn-primary…
+export const fieldCls = 'field';
+export const btnCls = 'btn';
+export const btnPrimaryCls = 'btn btn-primary';
 
 /** Copie dans le presse-papiers, avec repli pour le HTTP sur IP LAN (contexte non sécurisé). */
 export async function copyText(text: string): Promise<boolean> {
@@ -42,7 +42,7 @@ export function Section({
 }) {
   const id = useId();
   return (
-    <section aria-labelledby={id} className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+    <section aria-labelledby={id} className="card p-4 sm:p-5">
       <h3 id={id} className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">
         {title}
       </h3>
@@ -182,5 +182,39 @@ export function NumberInput({
       />
       {suffix && <span className="shrink-0 text-xs text-white/55">{suffix}</span>}
     </div>
+  );
+}
+
+/** Interrupteur (à la place d'une case à cocher native, détonnante sur sombre). */
+export function Switch({
+  checked,
+  onChange,
+  label,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-40 ${
+        checked ? 'bg-accent' : 'bg-white/15'
+      }`}
+    >
+      <span
+        aria-hidden
+        className={`absolute left-0.5 top-0.5 size-6 rounded-full bg-white shadow transition-transform ${
+          checked ? 'translate-x-5' : ''
+        }`}
+      />
+    </button>
   );
 }

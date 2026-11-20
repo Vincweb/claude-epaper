@@ -81,7 +81,7 @@ export function ApiKeySection() {
 
           {apiToken.qr && (
             <div className="flex items-center gap-4">
-              <img src={apiToken.qr} alt="QR d'appairage de l'app iOS" className="h-32 w-32 rounded-lg bg-white p-1" />
+              <img src={apiToken.qr} alt="QR d'appairage de l'app iOS" className="h-32 w-32 rounded-xl bg-white p-1.5" />
               <p className="text-[11px] text-white/55">
                 Dans l'app iOS, appuie sur « Scanner le QR », ou ouvre l'appareil photo : le lien d'appairage remplit
                 l'URL et la clé automatiquement.
@@ -90,12 +90,12 @@ export function ApiKeySection() {
           )}
 
           {confirm ? (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-warn/30 bg-warn/10 p-2 text-xs text-warn-soft">
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-warn/30 bg-warn/10 px-3 py-2 text-xs text-warn-soft">
               <span>Les appareils déjà appairés seront déconnectés.</span>
               <button
                 onClick={() => void (confirm === 'regen' ? generate() : revoke())}
                 disabled={busy}
-                className="rounded-lg bg-bad/20 px-2 py-1 text-bad-soft hover:bg-bad/30"
+                className="btn btn-sm bg-bad/20 text-bad-soft hover:bg-bad/30"
               >
                 {confirm === 'regen' ? 'Confirmer la régénération' : 'Confirmer la révocation'}
               </button>

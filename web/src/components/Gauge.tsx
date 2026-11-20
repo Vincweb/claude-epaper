@@ -28,7 +28,7 @@ function Tick({ pct }: { pct: number }) {
       y1={c + r1 * Math.sin(a)}
       x2={c + r2 * Math.cos(a)}
       y2={c + r2 * Math.sin(a)}
-      stroke="#0d0b09"
+      style={{ stroke: 'var(--color-ink)' }}
       strokeWidth={2.5}
     />
   );

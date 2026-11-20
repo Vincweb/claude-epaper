@@ -1,4 +1,5 @@
 import { STAT_ICONS, statColor, type Stat } from '../lib/usage';
+import { Icon } from './Icon';
 
 const SEGMENTS = 12;
 
@@ -32,7 +33,7 @@ export function TamagotchiStats({
     <button
       type="button"
       onClick={onExplain}
-      className="w-full max-w-sm cursor-pointer rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-white/25 hover:bg-white/[0.05]"
+      className="card w-full max-w-sm cursor-pointer p-4 text-left transition hover:bg-white/[0.06]"
       title="Voir les règles des stats et du niveau"
     >
       <div className="mb-3 flex items-center justify-between">
@@ -44,7 +45,7 @@ export function TamagotchiStats({
       <div className="space-y-2.5">
         {stats.map((s) => (
           <div key={s.key} className="flex items-center gap-3">
-            <span className="w-5 text-center text-sm">{STAT_ICONS[s.key] ?? '•'}</span>
+            <Icon name={STAT_ICONS[s.key] ?? 'mood'} className="size-[18px] shrink-0 text-white/70" />
             <span className="w-16 text-xs text-white/60">{s.label}</span>
             <Meter value={s.value} color={statColor(s.value)} />
             <span className="w-8 text-right text-xs tabular-nums text-white/50">{s.value}</span>

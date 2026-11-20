@@ -147,8 +147,12 @@ affichent toujours la même chose (pose, niveau, stats).
   de la dalle, `HumeursPage` + réglages de Clawd, `ConfigPage` = sections de
   `pages/config/`). Chaque section enregistre **ses seuls champs**
   (`useConfigDraft`, `components/ui.tsx`). Couleurs = jetons `@theme`
-  (`accent`, `ok`, `warn`, `bad`, `panel`…) dans `index.css`, jamais d'hexa en
-  dur. Modales via `components/Modal.tsx` (dialog, Échap, focus).
+  (`accent`, `ok`, `warn`, `bad`, `panel`, `ink`…) dans `index.css`, jamais
+  d'hexa en dur. Briques communes `@utility` : `card`, `btn`, `btn-primary`,
+  `btn-sm`, `btn-danger`, `field`, `segmented`/`seg` (+ `Switch` dans
+  `ui.tsx`) — les réutiliser plutôt que d'empiler des classes ad hoc. Fond
+  UNI `ink` (= theme-color, manifest, barre d'état) ; le halo est un
+  `body::before` fixe qui s'éteint avant les bords. Modales via `components/Modal.tsx` (dialog, Échap, focus).
 
 ## Endpoints clés (`/api`)
 

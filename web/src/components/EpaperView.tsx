@@ -71,7 +71,7 @@ export function EpaperView({ layout, online }: Props) {
       </div>
 
       {/* Bezel du boîtier physique. */}
-      <div className="relative rounded-2xl bg-[#22201d] p-4 shadow-2xl">
+      <div className="relative rounded-[1.5rem] bg-bezel p-4 shadow-2xl ring-1 ring-white/[0.06]">
         {shown ? (
           <img
             src={shown}
@@ -97,7 +97,7 @@ export function EpaperView({ layout, online }: Props) {
       <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-white/60">
         <span>Rendu réel {nativeW}×{nativeH} (2,13″)</span>
         {shown && (
-          <a href={shown} target="_blank" rel="noreferrer" className="rounded-lg bg-white/10 px-3 py-1 hover:bg-white/20">
+          <a href={shown} target="_blank" rel="noreferrer" className="btn btn-sm">
             Ouvrir le PNG ↗
           </a>
         )}

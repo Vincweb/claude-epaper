@@ -119,7 +119,7 @@ export function SystemSection() {
       ) : upd?.error ? (
         <div className="text-xs text-white/55">Vérification impossible ({upd.error})</div>
       ) : behind && upd ? (
-        <div className="rounded-lg border border-accent/40 bg-accent/10 p-3 text-xs">
+        <div className="rounded-xl border border-accent/40 bg-accent/10 p-3 text-xs">
           <div className="font-medium text-accent-soft">
             ⬆ Mise à jour disponible{upd.latestVersion ? ` — v${upd.latestVersion}` : ''} ({upd.behind} commit
             {upd.behind > 1 ? 's' : ''} de retard)

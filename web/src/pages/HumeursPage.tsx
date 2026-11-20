@@ -1,3 +1,4 @@
+import { Icon } from '../components/Icon';
 import { StylesGallery } from '../components/StylesGallery';
 import { Field, fieldCls, NumberInput, SaveFooter, Section, useConfigDraft } from '../components/ui';
 
@@ -8,10 +9,12 @@ function MoodSettings() {
   const draft = useConfigDraft(KEYS);
   return (
     <details className="group mb-6 w-full">
-      <summary className="mx-auto w-fit cursor-pointer select-none rounded-lg bg-white/10 px-3 py-1.5 text-xs hover:bg-white/20">
-        Réglages du comportement de Clawd
+      <summary className="btn btn-sm cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+        <Icon name="sliders" className="size-4" />
+        Comportement de Clawd
+        <span aria-hidden className="text-white/45 transition-transform group-open:rotate-180">▾</span>
       </summary>
-      <div className="mx-auto mt-3 max-w-md">
+      <div className="mt-3 max-w-md">
         <Section title="Comportement" hint="Quand Clawd change d'humeur tout seul." footer={<SaveFooter draft={draft} />}>
           <fieldset disabled={!draft.ready} className="space-y-3">
           <Field label="Anniversaire (pose spéciale le jour J)">
@@ -61,6 +64,11 @@ function MoodSettings() {
 export function HumeursPage() {
   return (
     <div className="w-full">
+      <h2 className="mb-1 text-lg font-semibold">Humeurs</h2>
+      <p className="mb-4 max-w-xl text-xs text-white/55">
+        Chaque humeur est animée en continu : compose son look (yeux, accessoires, animation) avec
+        « Modifier le look ». La dalle lit l'animation à 1 image par seconde ; le web dessine Clawd en direct.
+      </p>
       <MoodSettings />
       <StylesGallery />
     </div>
